@@ -10,13 +10,12 @@ openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 gemini_model = genai.GenerativeModel("models/gemini-pro")
 
-
 def summarize_with_openai(content):
     try:
         response = openai_client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "Tu es un expert en veille technologique. Résume les informations de manière concise, en extrayant les insights les plus pertinents pour un décideur."},
+                {"role": "system", "content": "Tu es un expert en veille technologique. Résume de manière claire et concise pour un décideur."},
                 {"role": "user", "content": content}
             ],
             temperature=0.4,
@@ -26,14 +25,12 @@ def summarize_with_openai(content):
     except Exception as e:
         return f"[Erreur OpenAI] {str(e)}"
 
-
 def summarize_with_gemini(content):
     try:
         response = gemini_model.generate_content(content)
         return response.text
     except Exception as e:
         return f"[Erreur Gemini] {str(e)}"
-
 
 def summarize_articles(articles, limit=None, use_gemini=False):
     summaries = defaultdict(str)
@@ -51,9 +48,19 @@ def summarize_articles(articles, limit=None, use_gemini=False):
 
     return summaries
 
-
 def summarize_text_block(text):
-    """Résumé global à partir d'un bloc de texte (pour la section 24h)"""
-    return summarize_with_openai(
-        f"Résume les tendances principales dans ce contenu extrait des 24 dernières heures :\n{text}"
-    )
+    """Résumé global des derniers 24h à partir de plusieurs extraits"""
+    try:
+        response = openai_client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Tu es un analyste stratégique. Résume les événements clés des dernières 24h à partir de ce texte brut."},
+                {"role": "user", "content": text}
+            ],
+            temperature=0.4,
+            max_tokens=500
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"[Erreur OpenAI Résumé 24h] {str(e)}"
+
