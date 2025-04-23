@@ -12,8 +12,10 @@ def build_report_view(summaries_by_topic, articles):
     en santé, finance et technologie, pour les mots-clés sélectionnés.
     """)
 
-    # Regrouper par thématique
-    grouped = {}
+    # Regrouper par thématique avec ordre fixe
+    order = ["🤖 Agents IA / Technologies", "💊 Santé", "💰 Finance", "📦 Autres"]
+    grouped = {cat: [] for cat in order}
+
     for topic, summary in summaries_by_topic.items():
         if any(k in topic.lower() for k in ["health", "santé", "hippocratic"]):
             cat = "💊 Santé"
@@ -24,21 +26,24 @@ def build_report_view(summaries_by_topic, articles):
         else:
             cat = "📦 Autres"
 
-        if cat not in grouped:
-            grouped[cat] = []
         grouped[cat].append((topic, summary))
 
-    for cat, entries in grouped.items():
-        st.subheader(cat)
-        for topic, summary in entries:
-            st.markdown(f"**🔹 {topic}**")
-            st.markdown(summary)
-            with st.expander("🔎 Articles sources"):
-                for art in [a for a in articles if a["keyword"] == topic]:
-                    st.markdown(f"- **{art['title']}**  \\n                    {art['snippet']}  \\n                    [Lien original]({art['link']})")
+    for cat in order:
+        entries = grouped[cat]
+        if entries:
+            st.subheader(cat)
+            for topic, summary in entries:
+                st.markdown(f"**🔹 {topic}**")
+                st.markdown(summary)
+                with st.expander("🔎 Articles sources"):
+                    for art in [a for a in articles if a["keyword"] == topic]:
+                        st.markdown(f"""
+- **{art['title']}**  
+  {art['snippet']}  
+  📌 [Lien original]({art['link']})
+""")
 
-
-def generate_docx(summaries_by_topic, articles):
+def generate_docx(summaries_by_topic, articles, summary_24h=None):
     """Crée un fichier DOCX structuré façon Deep Search"""
     doc = Document()
     doc.add_heading("Rapport stratégique – Agents IA", 0)
@@ -50,11 +55,15 @@ def generate_docx(summaries_by_topic, articles):
 
     # Résumé exécutif
     doc.add_heading("Résumé exécutif", level=1)
-    doc.add_paragraph(
-        "Ce résumé est généré automatiquement à partir d'une veille stratégique sur des dizaines de sources."
-    )
+    if summary_24h:
+        doc.add_paragraph(summary_24h)
+    else:
+        doc.add_paragraph("Ce résumé est généré automatiquement à partir d'une veille stratégique sur des dizaines de sources.")
 
-    grouped = {}
+    # Même regroupement qu'affichage Streamlit
+    order = ["IA / Agents", "Santé", "Finance", "Autres"]
+    grouped = {cat: [] for cat in order}
+
     for topic, summary in summaries_by_topic.items():
         if any(k in topic.lower() for k in ["health", "santé", "hippocratic"]):
             cat = "Santé"
@@ -64,21 +73,20 @@ def generate_docx(summaries_by_topic, articles):
             cat = "IA / Agents"
         else:
             cat = "Autres"
-        if cat not in grouped:
-            grouped[cat] = []
         grouped[cat].append((topic, summary))
 
-    for cat, entries in grouped.items():
-        doc.add_heading(cat, level=2)
-        for topic, summary in entries:
-            doc.add_heading(topic, level=3)
-            doc.add_paragraph(summary)
-
-            sources = [a for a in articles if a["keyword"] == topic]
-            if sources:
-                doc.add_paragraph("Sources :", style="Intense Quote")
-                for art in sources:
-                    doc.add_paragraph(f"- {art['title']} : {art['link']}", style="List Bullet")
+    for cat in order:
+        entries = grouped[cat]
+        if entries:
+            doc.add_heading(cat, level=2)
+            for topic, summary in entries:
+                doc.add_heading(topic, level=3)
+                doc.add_paragraph(summary)
+                sources = [a for a in articles if a["keyword"] == topic]
+                if sources:
+                    doc.add_paragraph("Sources :", style="Intense Quote")
+                    for art in sources:
+                        doc.add_paragraph(f"- {art['title']} : {art['link']}", style="List Bullet")
 
     buffer = BytesIO()
     doc.save(buffer)
