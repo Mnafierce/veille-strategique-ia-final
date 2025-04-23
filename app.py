@@ -2,7 +2,7 @@ import streamlit as st
 from fetch_news import run_news_crawl, KEYWORDS
 from fetch_sources import search_with_openai, search_arxiv, search_consensus_via_serpapi
 from summarizer import summarize_articles
-from generate_docx import generate_docx
+from report_builder import build_report_view, generate_docx
 
 st.set_page_config(page_title="Veille stratégique IA", layout="wide")
 st.title("🧠 Veille Stratégique – Agents IA en Finance & Santé")
@@ -37,7 +37,6 @@ else:
         for i, keyword in enumerate(selected_keywords):
             with st.spinner(f"🔎 Recherche pour : {keyword}"):
                 if use_google_news or use_serpapi or use_cse or use_gemini:
-                    from fetch_news import run_news_crawl
                     articles.extend(run_news_crawl(
                         [keyword],
                         use_google_news=use_google_news,
@@ -67,30 +66,8 @@ else:
         with st.spinner("🧠 Génération des résumés avec IA..."):
             summaries = summarize_articles(articles, limit=5 if fast_mode else None)
 
-        for topic in selected_keywords:
-            st.subheader(f"📁 {topic}")
-            if topic in summaries:
-                st.markdown(summaries[topic])
-
-            with st.expander("🔗 Articles sources"):
-                for article in [a for a in articles if a["keyword"] == topic]:
-                    source_icon = "🌐"
-                    if "Gemini" in article["title"]:
-                        source_icon = "🤖"
-                    elif "OpenAI" in article["title"]:
-                        source_icon = "🧠"
-                    elif "Consensus" in article["link"]:
-                        source_icon = "🔬"
-                    elif "arxiv.org" in article["link"]:
-                        source_icon = "📚"
-                    elif "CSE" in article["title"]:
-                        source_icon = "🧭"
-
-                    st.markdown(f"""
-- **{article['title']}**  
-  {article['snippet']}  
-  📎 [Lien]({article['link']}) — *{source_icon}*
-""")
+        st.header("📊 Rapport synthétique généré")
+        build_report_view(summaries, articles)
 
         if summaries:
             docx_file = generate_docx(summaries, articles)
