@@ -46,8 +46,14 @@ def summarize_articles(articles, limit=None, use_gemini=False):
 
         for article in topic_articles:
             content = f"Titre: {article['title']}\nExtrait: {article['snippet']}\nLien: {article['link']}"
-            
             summary = summarize_with_gemini(content) if use_gemini else summarize_with_openai(content)
             summaries[topic] += f"- {summary}\n\n"
 
     return summaries
+
+
+def summarize_text_block(text):
+    """Résumé global à partir d'un bloc de texte (pour la section 24h)"""
+    return summarize_with_openai(
+        f"Résume les tendances principales dans ce contenu extrait des 24 dernières heures :\n{text}"
+    )
