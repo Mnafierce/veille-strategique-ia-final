@@ -1,11 +1,11 @@
 import streamlit as st
 from fetch_news import run_news_crawl, KEYWORDS
 from fetch_sources import search_with_openai, search_arxiv, search_consensus_via_serpapi
-from summarizer import summarize_articles
+from summarizer import summarize_articles, summarize_text_block
 from report_builder import build_report_view, generate_docx
 
 st.set_page_config(page_title="Veille stratégique IA", layout="wide")
-st.title("🧠 Veille Stratégique – Agents IA en Finance & Santé")
+st.title("📊 Rapport synthétique généré")
 
 st.markdown("""
 Ce tableau de bord automatise la veille technologique sur les agents IA en santé, finance et recherche scientifique.
@@ -63,10 +63,14 @@ else:
         st.success(f"{len(articles)} articles trouvés.")
         st.divider()
 
-        with st.spinner("🧠 Génération des résumés avec IA..."):
+        with st.spinner("🧠 Génération des résumés avec IA (article par article)..."):
             summaries = summarize_articles(articles, limit=5 if fast_mode else None)
 
-        st.header("📊 Rapport synthétique généré")
+        st.subheader("📌 Résumé exécutif 24h")
+        all_snippets = "\n".join([a['snippet'] for a in articles])
+        summary_24h = summarize_text_block(all_snippets)
+        st.markdown(summary_24h)
+
         build_report_view(summaries, articles)
 
         if summaries:
@@ -77,3 +81,4 @@ else:
                 file_name="rapport_veille.docx",
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             )
+
