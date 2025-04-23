@@ -1,7 +1,8 @@
 import streamlit as st
 from fetch_news import run_news_crawl, KEYWORDS
 from summarizer import summarize_articles
-from generate_docx import generate_docx  # assure-toi que cette fonction existe
+from generate_docx import generate_docx
+from send_to_mem0 import send_to_mem0  # à créer si tu veux envoyer les résumés vers mem0
 
 # Configuration de la page
 st.set_page_config(page_title="Veille stratégique IA", layout="wide")
@@ -13,7 +14,7 @@ Ce tableau de bord génère automatiquement une synthèse des actualités liées
 dans les secteurs de la santé, de la finance et de l'intelligence artificielle.
 """)
 
-# Menu latéral : filtres de mots-clés
+# Menu latéral
 st.sidebar.header("🔍 Mots-clés à surveiller")
 selected_keywords = st.sidebar.multiselect(
     "Sélectionne les entreprises ou sujets à analyser :",
@@ -27,30 +28,41 @@ use_serpapi = st.sidebar.checkbox("🔍 SerpAPI", value=True)
 use_cse = st.sidebar.checkbox("🧭 Google CSE", value=True)
 use_gemini = st.sidebar.checkbox("🤖 Gemini", value=True)
 
-# Vérification de sélection
+st.sidebar.header("⚡ Mode d'exécution")
+fast_mode = st.sidebar.checkbox("Activer le mode rapide (résumés limités)", value=True)
+
 if not selected_keywords:
     st.warning("❗ Veuillez sélectionner au moins un mot-clé.")
 else:
     if st.button("🚀 Lancer la veille maintenant"):
-        with st.spinner("🔎 Recherche des actualités..."):
-            articles = run_news_crawl(
-                selected_keywords,
-                use_google_news=use_google_news,
-                use_serpapi=use_serpapi,
-                use_cse=use_cse,
-                use_gemini=use_gemini
-            )
+        progress = st.progress(0)
+        total = len(selected_keywords)
+        articles = []
+
+        for i, keyword in enumerate(selected_keywords):
+            with st.spinner(f"🔍 Recherche : {keyword}"):
+                result = run_news_crawl(
+                    [keyword],
+                    use_google_news=use_google_news,
+                    use_serpapi=use_serpapi,
+                    use_cse=use_cse,
+                    use_gemini=use_gemini
+                )
+                articles.extend(result)
+            progress.progress((i + 1) / total)
 
         st.success(f"{len(articles)} articles trouvés.")
         st.divider()
 
         with st.spinner("🧠 Génération des résumés avec IA..."):
-            summaries = summarize_articles(articles)
+            summaries = summarize_articles(articles, limit=5 if fast_mode else None, use_gemini=use_gemini)
+
 
         for topic in selected_keywords:
             st.subheader(f"🗂️ {topic}")
             if topic in summaries:
                 st.markdown(summaries[topic])
+                send_to_mem0(summaries[topic], topic)
 
             with st.expander("🔎 Articles sources"):
                 for article in [a for a in articles if a["keyword"] == topic]:
@@ -68,7 +80,6 @@ else:
   📎 [Lien]({article['link']}) — *{source_label}*
 """)
 
-        # Génération du DOCX si des résumés sont disponibles
         if summaries:
             docx_file = generate_docx(summaries, articles)
             st.download_button(

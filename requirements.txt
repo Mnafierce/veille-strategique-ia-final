@@ -1,7 +1,6 @@
-streamlit
-openai
-google-generativeai
-requests
-beautifulsoup4
-python-docx
-python-dotenv
+streamlit>=1.30.0
+openai>=1.2.4
+google-generativeai>=0.3.1
+python-docx>=1.0.0
+requests>=2.31.0
+

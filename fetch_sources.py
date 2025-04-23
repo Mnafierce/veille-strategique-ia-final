@@ -1,25 +1,30 @@
 import os
 import requests
-import json
 import google.generativeai as genai
+from openai import OpenAI
 
-# Chargement des clés via variables d’environnement (sécurisé)
+# Chargement sécurisé des clés API
 SERPAPI_KEY = os.getenv("SERPAPI_KEY")
 GOOGLE_CSE_ID = os.getenv("GOOGLE_CSE_ID")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# ----------- 1. GEMINI (Google Generative AI) ------------------
+# Clients API
+genai.configure(api_key=GEMINI_API_KEY)
+gemini_model = genai.GenerativeModel("models/gemini-pro")
+
+openai_client = OpenAI(api_key=OPENAI_API_KEY)
+
+# ----------- 1. GEMINI ------------------
 
 def search_with_gemini(prompt, temperature=0.4):
     try:
-        genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel("gemini-pro")
-        response = model.generate_content(prompt)
+        response = gemini_model.generate_content(prompt)
         return response.text
     except Exception as e:
-        return f"[Erreur Gemini] {e}"
+        return f"[Erreur Gemini] {str(e)}"
 
-# ----------- 2. SERPAPI (Recherche Web via Google Search) ------------------
+# ----------- 2. SERPAPI ------------------
 
 def search_with_serpapi(keyword):
     url = "https://serpapi.com/search"
@@ -46,14 +51,14 @@ def search_with_serpapi(keyword):
     except Exception as e:
         return [{"keyword": keyword, "title": "Erreur SerpAPI", "link": "", "snippet": str(e)}]
 
-# ----------- 3. Google Programmable Search Engine (Custom Search API) ------------------
+# ----------- 3. Google Programmable Search Engine ------------------
 
 def search_with_google_cse(keyword):
     url = "https://www.googleapis.com/customsearch/v1"
     params = {
         "q": keyword,
         "cx": GOOGLE_CSE_ID,
-        "key": SERPAPI_KEY,  # ou clé d'API Google si distincte
+        "key": SERPAPI_KEY,  # ou une clé API Google si différente
         "hl": "fr"
     }
 
