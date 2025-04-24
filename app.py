@@ -11,6 +11,7 @@ st.markdown("""
 Ce tableau de bord automatise la veille technologique sur les agents IA en santé, finance et recherche scientifique.
 """)
 
+# 🎛️ Paramètres latéraux
 st.sidebar.header("🔍 Mots-clés à surveiller")
 selected_keywords = st.sidebar.multiselect("Sujets à analyser :", KEYWORDS, default=KEYWORDS)
 
@@ -22,10 +23,12 @@ use_gemini = st.sidebar.checkbox("🤖 Gemini", value=True)
 use_openai = st.sidebar.checkbox("🧠 OpenAI", value=True)
 use_arxiv = st.sidebar.checkbox("📚 ArXiv", value=True)
 use_consensus = st.sidebar.checkbox("🔬 Consensus", value=True)
+use_agent = st.sidebar.checkbox("🧑‍💼 Activer l'agent stratégique", value=False)
 
 st.sidebar.header("⚡ Mode d'exécution")
 fast_mode = st.sidebar.checkbox("Activer le mode rapide (résumés limités)", value=True)
 
+# ⚠️ Validation
 if not selected_keywords:
     st.warning("❗ Veuillez sélectionner au moins un mot-clé.")
 else:
@@ -71,7 +74,8 @@ else:
         summary_24h = summarize_text_block(all_snippets)
         st.markdown(summary_24h)
 
-        build_report_view(summaries, articles)
+        with st.expander("📊 Rapport complet généré"):
+            build_report_view(summaries, articles)
 
         if summaries:
             docx_file = generate_docx(summaries, articles)
@@ -82,3 +86,24 @@ else:
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             )
 
+# Affichage du résumé exécutif 24h
+st.subheader("📌 Résumé exécutif – 24 dernières heures")
+all_snippets = "\n".join([a['snippet'] for a in articles])
+summary_24h = summarize_text_block(all_snippets)
+st.markdown(summary_24h)
+
+# Affichage structuré dans un expander
+with st.expander("📊 Rapport complet"):
+    build_report_view(summaries, articles)
+
+# 🧠 Agent intelligent
+if use_agent:
+    question = st.text_input("Pose une question à l’agent stratégique :")
+    if question:
+        with st.spinner("🤖 L'agent réfléchit..."):
+            try:
+                from agent_setup import run_veille_agent
+                response = run_veille_agent(question)
+                st.markdown(f"### Réponse de l'agent\n{response}")
+            except Exception as e:
+                st.error(f"❌ Erreur lors de l’appel à l’agent : {str(e)}")
