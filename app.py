@@ -5,11 +5,10 @@ from summarizer import summarize_articles, summarize_text_block, generate_strate
 from report_builder import build_report_view, generate_docx
 
 st.set_page_config(page_title="Veille stratégique IA", layout="wide")
-st.title("📊 Tableau de bord – Veille stratégique IA & Recommandations")
+st.title("📊 Rapport synthétique généré")
 
 st.markdown("""
 Ce tableau de bord automatise la veille technologique sur les agents IA en santé, finance et recherche scientifique.
-Vous y trouverez un aperçu des tendances détectées, des résumés par article, et des recommandations stratégiques.
 """)
 
 # 🎛️ Paramètres latéraux
@@ -70,7 +69,7 @@ else:
         with st.spinner("🧠 Génération des résumés avec IA (article par article)..."):
             summaries = summarize_articles(articles, limit=5 if fast_mode else None)
 
-        st.subheader("📌 Résumé exécutif – 24 dernières heures")
+        st.subheader("📌 Résumé exécutif 24h")
         all_snippets = "\n".join([a['snippet'] for a in articles])
         summary_24h = summarize_text_block(all_snippets)
         st.markdown(summary_24h)
@@ -87,19 +86,13 @@ else:
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             )
 
-        st.subheader("💡 Recommandations stratégiques générées par l'IA")
-        strategic_ideas = generate_strategic_recommendations(all_snippets)
-        st.markdown(strategic_ideas)
+        st.subheader("🎯 Recommandations stratégiques basées sur la veille")
+        with st.spinner("🔍 Analyse en cours..."):
+            recommendations = generate_strategic_recommendations(all_snippets)
+        st.markdown(recommendations)
 
-# 🧠 Agent intelligent (optionnel)
+# 🧠 Agent intelligent (à venir)
 if use_agent:
-    question = st.text_input("Pose une question à l’agent stratégique :")
-    if question:
-        with st.spinner("🤖 L'agent réfléchit..."):
-            try:
-                from agent_setup import run_veille_agent
-                response = run_veille_agent(question)
-                st.markdown(f"### Réponse de l'agent\n{response}")
-            except Exception as e:
-                st.error(f"❌ Erreur lors de l’appel à l’agent : {str(e)}")
+    st.subheader("🧑‍💼 Agent stratégique")
+    st.info("Fonction à venir : intégration d’un agent autonome basé sur Assistants API.")
 
