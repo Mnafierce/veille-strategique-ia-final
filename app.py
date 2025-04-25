@@ -3,12 +3,15 @@ from fetch_news import run_news_crawl, KEYWORDS
 from fetch_sources import search_with_openai, search_arxiv, search_consensus_via_serpapi
 from summarizer import summarize_articles, summarize_text_block
 from report_builder import build_report_view, generate_docx
+from alerts import alert_interface
+from idea_generator import generate_weekly_ideas
 
 st.set_page_config(page_title="Veille stratégique IA", layout="wide")
-st.title("📊 Rapport synthétique généré")
+st.title("📊 Tableau de bord de veille stratégique IA – 24h et hebdomadaire")
 
 st.markdown("""
 Ce tableau de bord automatise la veille technologique sur les agents IA en santé, finance et recherche scientifique.
+Il inclut des résumés quotidiens, un rapport structuré hebdomadaire, un système d'alerte personnalisée, et des idées innovantes générées par IA.
 """)
 
 # 🎛️ Paramètres latéraux
@@ -69,14 +72,17 @@ else:
         with st.spinner("🧠 Génération des résumés avec IA (article par article)..."):
             summaries = summarize_articles(articles, limit=5 if fast_mode else None)
 
-        st.subheader("📌 Résumé exécutif 24h")
-        all_snippets = "\n".join([a['snippet'] for a in articles])
+        # 📌 Résumé exécutif des dernières 24h
+        st.subheader("📌 Résumé exécutif – 24 dernières heures")
+        all_snippets = "\n".join([a['snippet'] for a in articles if 'snippet' in a])
         summary_24h = summarize_text_block(all_snippets)
         st.markdown(summary_24h)
 
+        # 📊 Rapport structuré
         with st.expander("📊 Rapport complet généré"):
             build_report_view(summaries, articles)
 
+        # 📥 Téléchargement DOCX
         if summaries:
             docx_file = generate_docx(summaries, articles)
             st.download_button(
@@ -86,25 +92,28 @@ else:
                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             )
 
-# Affichage du résumé exécutif 24h
-st.subheader("📌 Résumé exécutif – 24 dernières heures")
-all_snippets = "\n".join([a['snippet'] for a in articles])
-summary_24h = summarize_text_block(all_snippets)
-st.markdown(summary_24h)
+        # 🚨 Alertes personnalisées
+        alerts = alert_interface()
+        for article in articles:
+            for alert in alerts:
+                if alert.lower() in article['title'].lower():
+                    st.warning(f"🚨 Alerte détectée : **{alert}** dans {article['title']}")
 
-# Affichage structuré dans un expander
-with st.expander("📊 Rapport complet"):
-    build_report_view(summaries, articles)
+        # 💡 Idées IA
+        st.subheader("💡 Idées stratégiques générées par IA (hebdo)")
+        for idea in generate_weekly_ideas():
+            st.markdown(f"- {idea}")
 
-# 🧠 Agent intelligent
-if use_agent:
-    question = st.text_input("Pose une question à l’agent stratégique :")
-    if question:
-        with st.spinner("🤖 L'agent réfléchit..."):
-            try:
-                from agent_setup import run_veille_agent
-                response = run_veille_agent(question)
-                st.markdown(f"### Réponse de l'agent\n{response}")
-            except Exception as e:
-                st.error(f"❌ Erreur lors de l’appel à l’agent : {str(e)}")
+        # 🧠 Agent stratégique
+        if use_agent:
+            st.subheader("🧑‍💼 Agent stratégique interactif")
+            question = st.text_input("Pose une question à l’agent IA :")
+            if question:
+                with st.spinner("🤖 L'agent réfléchit..."):
+                    try:
+                        from agent_setup import run_veille_agent
+                        response = run_veille_agent(question)
+                        st.markdown(f"### Réponse de l'agent\n{response}")
+                    except Exception as e:
+                        st.error(f"❌ Erreur lors de l’appel à l’agent : {str(e)}")
 
