@@ -1,41 +1,26 @@
-import os
 import gspread
-from datetime import datetime
 from oauth2client.service_account import ServiceAccountCredentials
+import datetime
+import os
 
-# Connexion à Google Sheets
-def connect_to_sheet(sheet_name):
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
+# Configuration d'accès
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+json_keyfile = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "gcp_credentials.json")  # ou chemin relatif
+spreadsheet_url = os.getenv("GOOGLE_SHEETS_URL")
+
+def get_gsheet_client():
+    creds = ServiceAccountCredentials.from_json_keyfile_name(json_keyfile, scope)
     client = gspread.authorize(creds)
-    return client.open(sheet_name).sheet1
+    return client
 
-# Évaluation des alertes stratégiques
-def trigger_alerts(articles, keywords):
-    alerts = []
-    for article in articles:
-        for keyword in keywords:
-            if keyword.lower() in article["title"].lower() or keyword.lower() in article["snippet"].lower():
-                alerts.append({
-                    "keyword": keyword,
-                    "title": article["title"],
-                    "link": article["link"],
-                    "snippet": article["snippet"],
-                    "timestamp": datetime.now().isoformat()
-                })
-    return alerts
-
-# Enregistrement dans Google Sheets
-def save_alert_to_sheet(alerts, sheet_name="Veille_IA_Alertes"):
+def save_alert_to_sheet(keyword, alert_type, detail, source_link):
     try:
-        sheet = connect_to_sheet(sheet_name)
-        for alert in alerts:
-            sheet.append_row([
-                alert["timestamp"],
-                alert["keyword"],
-                alert["title"],
-                alert["link"],
-                alert["snippet"][:150]  # tronquer le texte si trop long
-            ])
+        client = get_gsheet_client()
+        sheet = client.open_by_url(spreadsheet_url).sheet1
+
+        now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+        row = [now, keyword, alert_type, detail, source_link]
+        sheet.append_row(row)
+        print(f"✅ Alerte ajoutée : {row}")
     except Exception as e:
-        print(f"Erreur lors de l'écriture dans Google Sheets : {e}")
+        print(f"❌ Erreur lors de l’ajout dans Google Sheets : {e}")
