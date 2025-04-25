@@ -7,16 +7,21 @@ from fetch_sources import (
     search_with_google_cse
 )
 
-# ✅ Mots-clés permanents en IA & technologie (toujours inclus)
-DEFAULT_TECH_KEYWORDS = [
-    "Artificial Intelligence", "AI Trends", "Machine Learning", "Agentic AI",
-    "LLMs", "Generative AI", "AI Regulation", "Technological Innovation",
-    "AI in Finance", "AI in Healthcare", "Digital Transformation",
-    "AI Agents", "Autonomous Agents", "Agent d’IA", "AI Startups"
+# 🧠 Mots-clés par défaut à toujours inclure
+ALWAYS_USE_KEYWORDS = [
+    "intelligence artificielle", "agent IA", "agents autonomes", "agents intelligents",
+    "technologie émergente", "tendances IA", "avancées technologiques", "automatisation cognitive",
+    "agentic AI", "AI-powered decision-making", "LLM applications", "IA générative", "multi-agent systems"
 ]
 
-# Liste des mots-clés à surveiller dynamiquement + fixes
-KEYWORDS = list(set(DEFAULT_TECH_KEYWORDS))
+# Liste des mots-clés à surveiller (ceux cochés par l'utilisateur + obligatoires)
+KEYWORDS = [
+    "Stealth Agents", "Accenture", "Cognizant", "Infosys BPM",
+    "Hippocratic AI", "ONE AI Health", "Amelia AI Agents",
+    "IBM Watson", "Deloitte", "Lyzr.ai", "Google Cloud Vertex AI",
+    "Microsoft Azure", "Cognigy", "FinConecta", "Finley AI", "Interface.ai",
+    "agentic AI", "AI in Healthcare", "AI in Finance"
+] + ALWAYS_USE_KEYWORDS
 
 # Recherche Google News simple (scraping)
 def search_google_news(keyword):
@@ -54,7 +59,7 @@ def run_news_crawl(
     use_gemini=True
 ):
     all_results = []
-    all_keywords = list(set(keywords + DEFAULT_TECH_KEYWORDS))
+    all_keywords = list(set(keywords + ALWAYS_USE_KEYWORDS))
 
     for keyword in all_keywords:
         print(f"\n🔍 Recherche pour : {keyword}")
@@ -83,7 +88,7 @@ def run_news_crawl(
         if use_gemini:
             try:
                 gemini_snippet = search_with_gemini(
-                    f"Fais une veille stratégique sur : {keyword}. Résume les nouvelles tendances technologiques, les concurrents émergents, les besoins du marché, et les usages des agents IA."
+                    f"Fais une veille stratégique sur : {keyword}. Résume les nouvelles tendances technologiques, les concurrents émergents, les besoins du marché, et les usages des agents IA dans les domaines de la santé et de la finance."
                 )
                 all_results.append({
                     "keyword": keyword,
