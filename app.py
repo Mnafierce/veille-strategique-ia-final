@@ -1,7 +1,7 @@
 import streamlit as st
-from fetch_news import run_news_crawl, KEYWORDS
+from fetch_news import run_news_crawl, KEYWORDS, ALWAYS_USE_KEYWORDS
 from fetch_sources import search_with_openai, search_arxiv, search_consensus_via_serpapi
-from summarizer import summarize_articles, summarize_text_block, generate_strategic_recommendations
+from summarizer import summarize_articles, summarize_text_block
 from report_builder import build_report_view, generate_docx
 
 st.set_page_config(page_title="Veille stratégique IA", layout="wide")
@@ -29,15 +29,16 @@ st.sidebar.header("⚡ Mode d'exécution")
 fast_mode = st.sidebar.checkbox("Activer le mode rapide (résumés limités)", value=True)
 
 # ⚠️ Validation
-if not selected_keywords:
+total_keywords = list(set(selected_keywords + ALWAYS_USE_KEYWORDS))
+if not total_keywords:
     st.warning("❗ Veuillez sélectionner au moins un mot-clé.")
 else:
     if st.button("🚀 Lancer la veille maintenant"):
         progress = st.progress(0)
-        total = len(selected_keywords)
+        total = len(total_keywords)
         articles = []
 
-        for i, keyword in enumerate(selected_keywords):
+        for i, keyword in enumerate(total_keywords):
             with st.spinner(f"🔎 Recherche pour : {keyword}"):
                 if use_google_news or use_serpapi or use_cse or use_gemini:
                     articles.extend(run_news_crawl(
@@ -69,30 +70,34 @@ else:
         with st.spinner("🧠 Génération des résumés avec IA (article par article)..."):
             summaries = summarize_articles(articles, limit=5 if fast_mode else None)
 
-        st.subheader("📌 Résumé exécutif 24h")
-        all_snippets = "\n".join([a['snippet'] for a in articles])
-        summary_24h = summarize_text_block(all_snippets)
-        st.markdown(summary_24h)
+        if articles:
+            st.subheader("📌 Résumé exécutif 24h")
+            all_snippets = "\n".join([a['snippet'] for a in articles])
+            summary_24h = summarize_text_block(all_snippets)
+            st.markdown(summary_24h)
 
-        with st.expander("📊 Rapport complet généré"):
-            build_report_view(summaries, articles)
+            with st.expander("📊 Rapport complet généré"):
+                build_report_view(summaries, articles)
 
-        if summaries:
-            docx_file = generate_docx(summaries, articles)
-            st.download_button(
-                label="📥 Télécharger le rapport en DOCX",
-                data=docx_file,
-                file_name="rapport_veille.docx",
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            )
+            if summaries:
+                docx_file = generate_docx(summaries, articles)
+                st.download_button(
+                    label="📥 Télécharger le rapport en DOCX",
+                    data=docx_file,
+                    file_name="rapport_veille.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                )
 
-        st.subheader("🎯 Recommandations stratégiques basées sur la veille")
-        with st.spinner("🔍 Analyse en cours..."):
-            recommendations = generate_strategic_recommendations(all_snippets)
-        st.markdown(recommendations)
+        # 🧠 Agent intelligent
+        if use_agent:
+            question = st.text_input("Pose une question à l’agent stratégique :")
+            if question:
+                with st.spinner("🤖 L'agent réfléchit..."):
+                    try:
+                        from agent_setup import run_veille_agent
+                        response = run_veille_agent(question)
+                        st.markdown(f"### Réponse de l'agent\n{response}")
+                    except Exception as e:
+                        st.error(f"❌ Erreur lors de l’appel à l’agent : {str(e)}")
 
-# 🧠 Agent intelligent (à venir)
-if use_agent:
-    st.subheader("🧑‍💼 Agent stratégique")
-    st.info("Fonction à venir : intégration d’un agent autonome basé sur Assistants API.")
 
