@@ -64,3 +64,24 @@ def summarize_text_block(text):
     except Exception as e:
         return f"[Erreur OpenAI Résumé 24h] {str(e)}"
 
+def generate_strategic_recommendations(summaries_by_topic):
+    """Génère 5 recommandations stratégiques basées sur les résumés."""
+    try:
+        content = "\n".join([f"{k}: {v}" for k, v in summaries_by_topic.items()])
+        response = openai_client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Tu es un expert en stratégie d'affaires et intelligence de marché. En te basant sur ces résumés de veille, propose 5 recommandations concrètes pour une entreprise technologique."
+                },
+                {"role": "user", "content": content}
+            ],
+            temperature=0.5,
+            max_tokens=600
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"⚠️ Erreur lors de la génération des recommandations stratégiques : {str(e)}"
+
+
