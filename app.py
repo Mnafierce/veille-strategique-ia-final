@@ -116,4 +116,3 @@ else:
                         st.markdown(f"### Réponse de l'agent\n{response}")
                     except Exception as e:
                         st.error(f"❌ Erreur lors de l’appel à l’agent : {str(e)}")
-
