@@ -10,6 +10,7 @@ openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 gemini_model = genai.GenerativeModel("models/gemini-pro")
 
+
 def summarize_with_openai(content):
     try:
         response = openai_client.chat.completions.create(
@@ -23,7 +24,8 @@ def summarize_with_openai(content):
         )
         return response.choices[0].message.content
     except Exception as e:
-        return f"[Erreur OpenAI] {str(e)}"
+        return None  # on gère l'erreur ailleurs
+
 
 def summarize_with_gemini(content):
     try:
@@ -31,6 +33,7 @@ def summarize_with_gemini(content):
         return response.text
     except Exception as e:
         return f"[Erreur Gemini] {str(e)}"
+
 
 def summarize_articles(articles, limit=None, use_gemini=False):
     summaries = defaultdict(str)
@@ -43,13 +46,17 @@ def summarize_articles(articles, limit=None, use_gemini=False):
 
         for article in topic_articles:
             content = f"Titre: {article['title']}\nExtrait: {article['snippet']}\nLien: {article['link']}"
-            summary = summarize_with_gemini(content) if use_gemini else summarize_with_openai(content)
+
+            summary = summarize_with_openai(content)
+            if summary is None:  # fallback si quota OpenAI dépassé
+                summary = summarize_with_gemini(content)
+
             summaries[topic] += f"- {summary}\n\n"
 
     return summaries
 
+
 def summarize_text_block(text):
-    """Résumé global des derniers 24h à partir de plusieurs extraits"""
     try:
         response = openai_client.chat.completions.create(
             model="gpt-3.5-turbo",
@@ -61,27 +68,14 @@ def summarize_text_block(text):
             max_tokens=500
         )
         return response.choices[0].message.content
-    except Exception as e:
-        return f"[Erreur OpenAI Résumé 24h] {str(e)}"
-
-def generate_strategic_recommendations(summaries_by_topic):
-    """Génère 5 recommandations stratégiques basées sur les résumés."""
-    try:
-        content = "\n".join([f"{k}: {v}" for k, v in summaries_by_topic.items()])
-        response = openai_client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "Tu es un expert en stratégie d'affaires et intelligence de marché. En te basant sur ces résumés de veille, propose 5 recommandations concrètes pour une entreprise technologique."
-                },
-                {"role": "user", "content": content}
-            ],
-            temperature=0.5,
-            max_tokens=600
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        return f"⚠️ Erreur lors de la génération des recommandations stratégiques : {str(e)}"
+    except Exception:
+        # fallback Gemini si quota OpenAI dépassé
+        return summarize_with_gemini(f"Résume les grandes tendances de ces extraits d'actualités :\n{text}")
 
 
+# Mots-clés permanents intégrés à toutes les recherches
+always_use_keywords = [
+    "intelligence artificielle", "agents intelligents", "agentic AI", "rupture technologique",
+    "machine learning", "technologie émergente", "IA générative", "recherche en IA",
+    "automatisation intelligente", "innovation algorithmique", "GPT-4", "LLM"
+]
