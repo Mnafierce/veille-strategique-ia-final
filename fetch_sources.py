@@ -124,3 +124,4 @@ def search_with_serpapi(keyword):
         } for result in results]
     except Exception as e:
         return [{"keyword": keyword, "title": "Erreur SerpAPI", "link": "", "snippet": str(e)}]
+
