@@ -103,3 +103,48 @@ def run_news_crawl(
 
     return all_results
 
+# ideas.py : Module pour génération d'idées innovantes
+
+import os
+from openai import OpenAI
+import google.generativeai as genai
+from summarizer import INNOVATION_KEYWORDS
+
+# Initialiser OpenAI et Gemini
+openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+gemini_model = genai.GenerativeModel("models/gemini-pro")
+
+def generate_innovation_ideas():
+    try:
+        joined_keywords = ", ".join(INNOVATION_KEYWORDS)
+        prompt = f"""
+        Génère 5 idées d'innovation concrètes pour les entreprises en utilisant les dernières tendances dans :
+        {joined_keywords}.
+        Donne des idées claires, concrètes, applicables et pertinentes.
+        """
+
+        response = openai_client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "Tu es un stratège en innovation d'entreprise."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=800
+        )
+
+        return response.choices[0].message.content
+
+    except Exception as e:
+        print("[OpenAI Error - fallback Gemini]", e)
+        try:
+            response = gemini_model.generate_content(prompt)
+            return response.text
+        except Exception as e2:
+            return f"[Erreur à toutes les sources] {e2}"
+
+# Pour test local
+if __name__ == "__main__":
+    print(generate_innovation_ideas())
+
