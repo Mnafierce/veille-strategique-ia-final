@@ -95,13 +95,10 @@ if st.button("🚀 Lancer la veille stratégique"):
             st.markdown(f"✅ {reco}")
 
     if summaries:
-        docx_file = generate_docx(summaries, articles)
-        st.download_button(
-            label="📅 Télécharger le rapport en DOCX",
-            data=docx_file,
-            file_name="rapport_veille.docx",
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        )
-
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        )
+    docx_file = generate_docx(summaries, articles)
+    st.download_button(
+        label="📅 Télécharger le rapport en DOCX",
+        data=docx_file,
+        file_name="rapport_veille.docx",
+        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
