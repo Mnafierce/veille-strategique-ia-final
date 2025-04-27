@@ -102,3 +102,6 @@ if st.button("🚀 Lancer la veille stratégique"):
             file_name="rapport_veille.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         )
+
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
