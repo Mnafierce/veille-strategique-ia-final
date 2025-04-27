@@ -1,114 +1,99 @@
 import streamlit as st
-from fetch_news import run_news_crawl
-from summarizer import summarize_articles, summarize_text_block
+from fetch_news import run_news_crawl, KEYWORDS, INNOVATION_KEYWORDS
+from fetch_sources import (
+    search_with_openai, search_arxiv,
+    search_consensus_via_serpapi,
+    search_with_perplexity, search_with_cse_sources
+)
+from summarizer import summarize_articles, summarize_text_block, generate_innovation_ideas, generate_strategic_recommendations
 from report_builder import build_report_view, generate_docx
-from fetch_sources import search_with_openai, search_arxiv, search_consensus_via_serpapi
 
 st.set_page_config(page_title="Veille stratégique IA", layout="wide")
-st.title("📊 Tableau de bord IA stratégique")
+st.title("📊 Tableau de bord IA – Stratégie & Innovation")
 
 st.markdown("""
-Ce tableau de bord automatise la veille technologique sur les agents IA en santé, finance et recherche scientifique.
+Ce tableau de bord automatise la veille stratégique sur les agents IA dans les domaines de la santé, de la finance,
+ainsi que les innovations émergentes.
 """)
 
-# ————————————————————————————————
-# 🔍 Choix de secteur (mots-clés dynamiques)
-# ————————————————————————————————
-st.sidebar.header("🏢 Choix du secteur")
-secteur = st.sidebar.selectbox("Sélectionne un secteur :", ["Finance", "Santé", "Tous les secteurs"])
+# 🎛️ Sélection des secteurs d’intérêt
+st.sidebar.header("🏷️ Domaines ciblés")
+selected_sector = st.sidebar.radio("Choisis un secteur :", ["Santé", "Finance", "Tous"])
 
-keywords_finance = [
-    "FinConecta", "Finley AI", "Interface.ai", "Deloitte", "Banque", "Finance",
-    "gestion de patrimoine", "banque numérique", "comptabilité automatisée", "agentic AI", "LLM en finance"
-]
-
-keywords_sante = [
-    "Hippocratic AI", "ONE AI Health", "agentic AI", "IA en santé",
-    "diagnostic par IA", "robot médical", "dossier santé numérique", "IA pour la recherche clinique"
-]
-
-from summarizer import always_use_keywords
-
-if secteur == "Finance":
-    selected_keywords = keywords_finance + always_use_keywords
-elif secteur == "Santé":
-    selected_keywords = keywords_sante + always_use_keywords
-else:
-    selected_keywords = keywords_finance + keywords_sante + always_use_keywords
-
-if st.sidebar.checkbox("Afficher les mots-clés utilisés"):
-    st.sidebar.write(selected_keywords)
-
-# ————————————————————————————————
-# ⚙️ Sources à inclure
-# ————————————————————————————————
-st.sidebar.header("⚙️ Sources à inclure")
+# 🎛️ Modules à activer
+st.sidebar.header("⚙️ Modules à activer")
 use_google_news = st.sidebar.checkbox("🌐 Google News", value=True)
-use_serpapi = st.sidebar.checkbox("🔍 SerpAPI", value=True)
-use_cse = st.sidebar.checkbox("🧭 Google CSE", value=True)
+use_cse = st.sidebar.checkbox("📡 Google CSE/TechCrunch/VB", value=True)
+use_perplexity = st.sidebar.checkbox("🧠 Perplexity AI", value=True)
 use_gemini = st.sidebar.checkbox("🤖 Gemini", value=True)
-use_openai = st.sidebar.checkbox("🧠 OpenAI", value=True)
-use_arxiv = st.sidebar.checkbox("📚 ArXiv", value=True)
-use_consensus = st.sidebar.checkbox("🔬 Consensus", value=True)
-use_agent = st.sidebar.checkbox("🧑‍💼 Activer l'agent stratégique", value=False)
+use_openai = st.sidebar.checkbox("💬 OpenAI", value=True)
+use_arxiv = st.sidebar.checkbox("📚 ArXiv (scientifique)", value=False)
+use_consensus = st.sidebar.checkbox("🔬 Consensus", value=False)
 
-# ————————————————————————————————
-# ⚡ Mode rapide (limite le nombre d'articles)
-# ————————————————————————————————
-st.sidebar.header("⚡ Mode d'exécution")
-fast_mode = st.sidebar.checkbox("Activer le mode rapide (résumés limités)", value=True)
+# 🔄 Modes
+st.sidebar.header("⚡ Mode IA")
+fast_mode = st.sidebar.checkbox("Mode rapide (résumés limités)", value=True)
+salesforce_mode = st.sidebar.checkbox("💼 Mode Salesforce (recommandations commerciales)", value=False)
+show_ideas = st.sidebar.checkbox("💡 Afficher 5 idées innovantes de la semaine", value=True)
 
-# ————————————————————————————————
-# 🚀 Lancer la veille
-# ————————————————————————————————
-if st.button("🚀 Lancer la veille maintenant"):
+# 🔍 Mots-clés de base pour chaque secteur
+sector_keywords = {
+    "Santé": ["Hippocratic AI", "AI in Healthcare", "One AI Health", "Amelia AI", "IA médicale"],
+    "Finance": ["Finley AI", "Interface.ai", "AI in Finance", "automatisation bancaire"],
+    "Tous": []
+}
+
+keywords = sector_keywords[selected_sector] + INNOVATION_KEYWORDS
+
+if st.button("🚀 Lancer la veille stratégique"):
     progress = st.progress(0)
-    total = len(selected_keywords)
     articles = []
 
-    for i, keyword in enumerate(selected_keywords):
+    for i, keyword in enumerate(keywords):
         with st.spinner(f"🔎 Recherche pour : {keyword}"):
-            if use_google_news or use_serpapi or use_cse or use_gemini:
-                articles.extend(run_news_crawl(
-                    [keyword],
-                    use_google_news=use_google_news,
-                    use_serpapi=use_serpapi,
-                    use_cse=use_cse,
-                    use_gemini=use_gemini
-                ))
-
+            if use_google_news or use_cse:
+                articles.extend(run_news_crawl([keyword], use_google_news=use_google_news))
+            if use_cse:
+                articles.extend(search_with_cse_sources(keyword))
+            if use_perplexity:
+                articles.extend(search_with_perplexity(keyword))
             if use_arxiv:
                 articles.extend(search_arxiv(keyword))
             if use_consensus:
                 articles.extend(search_consensus_via_serpapi(keyword))
             if use_openai:
-                openai_summary = search_with_openai(keyword)
                 articles.append({
                     "keyword": keyword,
-                    "title": "Résumé généré via OpenAI",
+                    "title": "Résumé OpenAI",
                     "link": "https://platform.openai.com/",
-                    "snippet": openai_summary
+                    "snippet": search_with_openai(keyword)
                 })
+        progress.progress((i + 1) / len(keywords))
 
-        progress.progress((i + 1) / total)
-
-    st.success(f"✅ {len(articles)} articles trouvés.")
+    st.success(f"{len(articles)} articles trouvés.")
     st.divider()
 
-    with st.spinner("🧠 Résumés IA en cours..."):
+    with st.spinner("🧠 Résumés générés par IA..."):
         summaries = summarize_articles(articles, limit=5 if fast_mode else None)
 
-    # 📌 Résumé exécutif global (24h)
-    st.subheader("📌 Résumé exécutif – 24 dernières heures")
+    st.subheader("📌 Résumé exécutif – dernières 24h")
     all_snippets = "\n".join([a['snippet'] for a in articles])
     summary_24h = summarize_text_block(all_snippets)
     st.markdown(summary_24h)
 
-    # 📊 Rapport structuré complet
-    with st.expander("📊 Rapport complet généré"):
+    with st.expander("📊 Rapport complet structuré"):
         build_report_view(summaries, articles)
 
-    # 📁 Téléchargement du rapport
+    if show_ideas:
+        st.subheader("💡 5 idées innovantes générées par IA")
+        for idea in generate_innovation_ideas(all_snippets):
+            st.markdown(f"- {idea}")
+
+    if salesforce_mode:
+        st.subheader("📈 Recommandations IA – Commercial / Salesforce")
+        for reco in generate_strategic_recommendations(all_snippets, mode="salesforce"):
+            st.markdown(f"✅ {reco}")
+
     if summaries:
         docx_file = generate_docx(summaries, articles)
         st.download_button(
@@ -118,14 +103,3 @@ if st.button("🚀 Lancer la veille maintenant"):
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         )
 
-# 🧠 Agent intelligent (optionnel)
-if use_agent:
-    question = st.text_input("Pose une question à l’agent stratégique :")
-    if question:
-        with st.spinner("🤖 L'agent réfléchit..."):
-            try:
-                from agent_setup import run_veille_agent
-                response = run_veille_agent(question)
-                st.markdown(f"### Réponse de l'agent\n{response}")
-            except Exception as e:
-                st.error(f"❌ Erreur lors de l’appel à l’agent : {str(e)}")
