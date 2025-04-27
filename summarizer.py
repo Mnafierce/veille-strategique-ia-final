@@ -69,7 +69,6 @@ def summarize_text_block(text):
         )
         return response.choices[0].message.content
     except Exception:
-        # fallback Gemini si quota OpenAI dépassé
         return summarize_with_gemini(f"Résume les grandes tendances de ces extraits d'actualités :\n{text}")
 
 
@@ -78,4 +77,12 @@ always_use_keywords = [
     "intelligence artificielle", "agents intelligents", "agentic AI", "rupture technologique",
     "machine learning", "technologie émergente", "IA générative", "recherche en IA",
     "automatisation intelligente", "innovation algorithmique", "GPT-4", "LLM"
+]
+
+# Mots-clés pour idées innovantes
+INNOVATION_KEYWORDS = [
+    "AI startup funding", "AI for operations", "enterprise automation trends",
+    "predictive analytics in business", "intelligent agents in finance",
+    "AI-powered decision-making", "AI trends in business strategy",
+    "generative AI in enterprise", "AI and customer engagement", "future of automation"
 ]
