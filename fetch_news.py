@@ -6,9 +6,17 @@ from fetch_sources import (
     search_with_serpapi,
     search_with_google_cse
 )
-from summarizer import always_use_keywords, INNOVATION_KEYWORDS
+from summarizer import always_use_keywords
 
-# 🧠 Mots-clés sectoriels pour filtres
+# Mots-clés innovation à utiliser pour la génération d'idées
+INNOVATION_KEYWORDS = [
+    "AI startup funding", "AI for operations", "enterprise automation trends",
+    "predictive analytics in business", "intelligent agents in finance",
+    "AI-powered decision-making", "AI trends in business strategy",
+    "generative AI in enterprise", "AI and customer engagement", "future of automation"
+]
+
+# Mots-clés spécifiques à chaque secteur
 SECTOR_KEYWORDS = {
     "Finance": [
         "AI in banking", "Fintech AI", "robo-advisor", "RegTech", "Fraud detection AI",
@@ -20,6 +28,7 @@ SECTOR_KEYWORDS = {
     ]
 }
 
+# Recherche via Google News (scraping léger)
 def search_google_news(keyword):
     encoded = urllib.parse.quote_plus(keyword)
     url = f"https://www.google.com/search?q={encoded}&tbm=nws"
@@ -45,6 +54,8 @@ def search_google_news(keyword):
 
     return results
 
+# Fonction principale d’agrégation
+
 def run_news_crawl(
     keywords,
     use_google_news=True,
@@ -53,6 +64,8 @@ def run_news_crawl(
     use_gemini=True
 ):
     all_results = []
+
+    # Ajouter les mots-clés toujours utilisés
     search_keywords = list(set(keywords + always_use_keywords))
 
     for keyword in search_keywords:
@@ -91,4 +104,3 @@ def run_news_crawl(
                 print(f"[Gemini Error] {e}")
 
     return all_results
-
