@@ -1,25 +1,38 @@
-# 🧠 Veille Stratégique – Agents IA en Finance & Santé
+# 🧠 Veille Stratégique – Agents IA en Santé, Finance & Innovation
 
-Une application Streamlit qui automatise la veille stratégique sur les **agents IA** dans les secteurs de la **santé**, de la **finance** et de l’**intelligence artificielle**, en utilisant les modèles **Gemini** et **GPT**, ainsi que **Google Search** via SerpAPI et CSE.
+Ce tableau de bord Streamlit automatise la **veille technologique et stratégique** à l’aide de modèles IA avancés (GPT-4, Gemini, Perplexity) dans les domaines de :
+
+- 💊 Santé
+- 💰 Finance
+- 💡 Innovation d’entreprise
+
+## 🔧 Fonctionnalités principales
+
+✅ Recherche automatisée via :
+- Google News & Programmable Search (CSE)
+- TechCrunch, VentureBeat, PitchBook
+- Perplexity AI
+- ArXiv (recherche scientifique)
+- Consensus (résumés académiques)
+
+✅ Génération IA de :
+- Résumés par article (Gemini ou GPT-4)
+- Résumé exécutif des 24 dernières heures
+- Rapport structuré par thématique
+- Recommandations stratégiques personnalisées (avec mode Salesforce)
+- **5 idées innovantes générées chaque semaine**
+
+✅ Interface interactive :
+- 🎛️ Sélection du secteur (Santé / Finance)
+- 🧠 Mode rapide (résumés limités)
+- 🧑‍💼 Mode Salesforce (recommandations commerciales)
+- 📥 Export DOCX téléchargeable
 
 ---
 
-## 🚀 Fonctionnalités
+## 🚀 Lancer l'application
 
-- 🔍 Recherches automatisées sur plus de 20 mots-clés (Lyzr.ai, Finley AI, Gemini, Interface.ai…)
-- 🤖 Résumés générés automatiquement via **OpenAI GPT** ou **Google Gemini**
-- 📥 Rapport téléchargeable en **format DOCX**
-- ☁️ Envoi automatique des synthèses dans **Mem0** (mémoire de veille centralisée)
-- ⚙️ Choix des sources : Google News, SerpAPI, Google CSE, Gemini
-- ⚡ Mode rapide pour limiter le temps de génération
-
----
-
-## 🧰 Installation locale
+### 1. Installation des dépendances
 
 ```bash
-git clone https://github.com/Mnafierce/veille-strategique-ia-final.git
-cd veille-strategique-ia-final
 pip install -r requirements.txt
-streamlit run app.py
-
