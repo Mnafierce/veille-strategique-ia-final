@@ -9,7 +9,7 @@ from summarizer import summarize_articles, summarize_text_block, generate_innova
 from report_builder import build_report_view, generate_docx
 
 st.set_page_config(page_title="Veille stratégique IA", layout="wide")
-st.title("📊 Tableau de bord IA – Stratégie & Innovation")
+st.title("\U0001F4CA Tableau de bord IA – Stratégie & Innovation")
 
 st.markdown("""
 Ce tableau de bord automatise la veille stratégique sur les agents IA dans les domaines de la santé, de la finance,
@@ -23,8 +23,8 @@ selected_sector = st.sidebar.radio("Choisis un secteur :", ["Santé", "Finance",
 # 🎛️ Modules à activer
 st.sidebar.header("⚙️ Modules à activer")
 use_google_news = st.sidebar.checkbox("🌐 Google News", value=True)
-use_cse = st.sidebar.checkbox("📡 Google CSE/TechCrunch/VB", value=True)
-use_perplexity = st.sidebar.checkbox("🧐 Perplexity AI", value=True)
+use_cse = st.sidebar.checkbox("🛁 Google CSE/TechCrunch/VB", value=True)
+use_perplexity = st.sidebar.checkbox("🧠 Perplexity AI", value=True)
 use_gemini = st.sidebar.checkbox("🤖 Gemini", value=True)
 use_openai = st.sidebar.checkbox("💬 OpenAI", value=True)
 use_arxiv = st.sidebar.checkbox("📚 ArXiv (scientifique)", value=False)
@@ -94,11 +94,11 @@ if st.button("🚀 Lancer la veille stratégique"):
         for reco in generate_strategic_recommendations(all_snippets, mode="salesforce"):
             st.markdown(f"✅ {reco}")
 
-   if summaries:
-    docx_file = generate_docx(summaries, articles)
-    st.download_button(
-        label="📅 Télécharger le rapport en DOCX",
-        data=docx_file,
-        file_name="rapport_veille.docx",
-        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    )
+    if summaries:
+        docx_file = generate_docx(summaries, articles)
+        st.download_button(
+            label="📅 Télécharger le rapport en DOCX",
+            data=docx_file,
+            file_name="rapport_veille.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
