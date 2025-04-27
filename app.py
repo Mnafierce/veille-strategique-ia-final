@@ -94,7 +94,7 @@ if st.button("🚀 Lancer la veille stratégique"):
         for reco in generate_strategic_recommendations(all_snippets, mode="salesforce"):
             st.markdown(f"✅ {reco}")
 
-    if summaries:
+   if summaries:
     docx_file = generate_docx(summaries, articles)
     st.download_button(
         label="📅 Télécharger le rapport en DOCX",
