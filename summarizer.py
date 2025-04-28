@@ -10,7 +10,6 @@ openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 gemini_model = genai.GenerativeModel("models/gemini-pro")
 
-
 def summarize_with_openai(content):
     try:
         response = openai_client.chat.completions.create(
@@ -23,9 +22,8 @@ def summarize_with_openai(content):
             max_tokens=300
         )
         return response.choices[0].message.content
-    except Exception as e:
-        return None  # on gère l'erreur ailleurs
-
+    except Exception:
+        return None
 
 def summarize_with_gemini(content):
     try:
@@ -33,7 +31,6 @@ def summarize_with_gemini(content):
         return response.text
     except Exception as e:
         return f"[Erreur Gemini] {str(e)}"
-
 
 def summarize_articles(articles, limit=None, use_gemini=False):
     summaries = defaultdict(str)
@@ -46,15 +43,13 @@ def summarize_articles(articles, limit=None, use_gemini=False):
 
         for article in topic_articles:
             content = f"Titre: {article['title']}\nExtrait: {article['snippet']}\nLien: {article['link']}"
-
             summary = summarize_with_openai(content)
-            if summary is None:  # fallback si quota OpenAI dépassé
+            if summary is None:
                 summary = summarize_with_gemini(content)
 
             summaries[topic] += f"- {summary}\n\n"
 
     return summaries
-
 
 def summarize_text_block(text):
     try:
@@ -71,6 +66,23 @@ def summarize_text_block(text):
     except Exception:
         return summarize_with_gemini(f"Résume les grandes tendances de ces extraits d'actualités :\n{text}")
 
+def generate_swot_analysis(text_block):
+    try:
+        response = openai_client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Tu es un consultant stratégique. Analyse le texte et propose une grille SWOT pour l’entreprise Salesforce sur les agents agentiques IA."},
+                {"role": "user", "content": text_block}
+            ],
+            temperature=0.5,
+            max_tokens=800
+        )
+        return response.choices[0].message.content
+    except Exception:
+        return summarize_with_gemini(f"Fais une analyse SWOT à partir de ce contenu :\n{text_block}")
+
+def compute_strategic_score(snippet, keywords):
+    return sum(1 for kw in keywords if kw.lower() in snippet.lower())
 
 # Mots-clés permanents intégrés à toutes les recherches
 always_use_keywords = [
@@ -86,3 +98,34 @@ INNOVATION_KEYWORDS = [
     "AI-powered decision-making", "AI trends in business strategy",
     "generative AI in enterprise", "AI and customer engagement", "future of automation"
 ]
+
+def generate_innovation_ideas(text_block):
+    try:
+        response = openai_client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Tu es un générateur d’idées d’innovation pour les grandes entreprises tech."},
+                {"role": "user", "content": f"À partir de ce contenu :\n{text_block}\nPropose 5 idées innovantes utilisables par Salesforce dans le domaine des agents IA autonomes."}
+            ],
+            temperature=0.7,
+            max_tokens=400
+        )
+        return response.choices[0].message.content.split("\n")
+    except Exception:
+        return ["[Erreur génération idées]"]
+
+def generate_strategic_recommendations(text_block, mode="default"):
+    prompt = f"Tu es un expert en stratégie IA. Donne 5 recommandations pour {mode} à partir du contenu suivant :\n{text_block}"
+    try:
+        response = openai_client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Fournis des recommandations pratiques et stratégiques."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.6,
+            max_tokens=400
+        )
+        return response.choices[0].message.content.split("\n")
+    except Exception:
+        return ["[Erreur génération recommandations]"]
