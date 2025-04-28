@@ -1,4 +1,6 @@
 import streamlit as st
+import datetime
+import asyncio
 from fetch_news import run_news_crawl
 from fetch_sources import (
     search_with_openai, search_arxiv,
@@ -13,7 +15,7 @@ from summarizer import (
 )
 from report_builder import build_report_view, generate_docx
 from streamlit_timeline import timeline
-import datetime
+from async_sources import run_async_sources
 
 st.set_page_config(page_title="Veille stratégique IA", layout="wide")
 st.title("\U0001F4CA Tableau de bord IA – Stratégie & Innovation")
@@ -63,27 +65,37 @@ if st.button("🚀 Lancer la veille stratégique"):
     progress = st.progress(0)
     articles = []
 
-    for i, keyword in enumerate(keywords):
-        with st.spinner(f"🔎 Recherche pour : {keyword}"):
-            if use_google_news or use_cse:
-                articles.extend(run_news_crawl([keyword], use_google_news=use_google_news))
-            if use_cse:
-                articles.extend(search_with_cse_sources(keyword))
-            if use_perplexity:
-                articles.extend(search_with_perplexity(keyword))
-            if use_arxiv:
-                articles.extend(search_arxiv(keyword))
-            if use_consensus:
-                articles.extend(search_consensus_via_serpapi(keyword))
-            if use_openai:
-                articles.append({
-                    "keyword": keyword,
-                    "title": "Résumé OpenAI",
-                    "link": "https://platform.openai.com/",
-                    "snippet": search_with_openai(keyword),
-                    "date": datetime.datetime.now().isoformat()
-                })
-        progress.progress((i + 1) / len(keywords))
+    if fast_mode:
+        st.info("Mode rapide activé : les requêtes sont parallélisées.")
+        articles = asyncio.run(run_async_sources(
+            keywords,
+            use_cse=use_cse,
+            use_perplexity=use_perplexity,
+            use_arxiv=use_arxiv,
+            use_consensus=use_consensus
+        ))
+    else:
+        for i, keyword in enumerate(keywords):
+            with st.spinner(f"🔎 Recherche pour : {keyword}"):
+                if use_google_news or use_cse:
+                    articles.extend(run_news_crawl([keyword], use_google_news=use_google_news))
+                if use_cse:
+                    articles.extend(search_with_cse_sources(keyword))
+                if use_perplexity:
+                    articles.extend(search_with_perplexity(keyword))
+                if use_arxiv:
+                    articles.extend(search_arxiv(keyword))
+                if use_consensus:
+                    articles.extend(search_consensus_via_serpapi(keyword))
+                if use_openai:
+                    articles.append({
+                        "keyword": keyword,
+                        "title": "Résumé OpenAI",
+                        "link": "https://platform.openai.com/",
+                        "snippet": search_with_openai(keyword),
+                        "date": datetime.datetime.now().isoformat()
+                    })
+            progress.progress((i + 1) / len(keywords))
 
     st.success(f"{len(articles)} articles trouvés.")
     st.divider()
@@ -121,7 +133,6 @@ if st.button("🚀 Lancer la veille stratégique"):
         for reco in generate_strategic_recommendations(all_snippets, mode="salesforce"):
             st.markdown(f"✅ {reco}")
 
-    # Timeline enrichie avec dates réelles si disponibles
     st.subheader("🕒 Timeline des sujets stratégiques")
     events = []
     for article in articles:
@@ -155,4 +166,3 @@ if st.button("🚀 Lancer la veille stratégique"):
             file_name="rapport_veille.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         )
-
