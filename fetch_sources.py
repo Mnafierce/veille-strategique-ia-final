@@ -125,3 +125,36 @@ def search_with_serpapi(keyword):
     except Exception as e:
         return [{"keyword": keyword, "title": "Erreur SerpAPI", "link": "", "snippet": str(e)}]
 
+# ----------- Perplexity (non officiel ou clé privée) ------------------
+def search_with_perplexity(query):
+    try:
+        headers = {
+            "Authorization": f"Bearer {os.getenv('PERPLEXITY_API_KEY')}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "q": query,
+            "source": "web",
+            "autocomplete": False
+        }
+        response = requests.post("https://api.perplexity.ai/search", headers=headers, json=payload)
+        data = response.json()
+
+        articles = []
+        for item in data.get("results", [])[:5]:
+            articles.append({
+                "keyword": query,
+                "title": item.get("title"),
+                "link": item.get("url"),
+                "snippet": item.get("snippet", ""),
+                "date": item.get("published_at") or None
+            })
+        return articles
+    except Exception as e:
+        return [{
+            "keyword": query,
+            "title": "Erreur Perplexity",
+            "link": "",
+            "snippet": str(e),
+            "date": None
+        }]
