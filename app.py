@@ -1,6 +1,7 @@
 import streamlit as st
 import datetime
 import asyncio
+import time
 from fetch_news import run_news_crawl
 from fetch_sources import (
     search_with_openai, search_arxiv,
@@ -62,6 +63,7 @@ if selected_subtopic:
     keywords.append(selected_subtopic)
 
 if st.button("🚀 Lancer la veille stratégique"):
+    start_time = time.time()
     progress = st.progress(0)
     articles = []
 
@@ -97,7 +99,8 @@ if st.button("🚀 Lancer la veille stratégique"):
                     })
             progress.progress((i + 1) / len(keywords))
 
-    st.success(f"{len(articles)} articles trouvés.")
+    duration = time.time() - start_time
+    st.success(f"{len(articles)} articles trouvés en {duration:.2f} secondes.")
     st.divider()
 
     with st.spinner("🧠 Résumés générés par IA..."):
