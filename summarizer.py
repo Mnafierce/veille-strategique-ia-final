@@ -6,9 +6,9 @@ import google.generativeai as genai
 # Initialiser OpenAI client
 openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# Configurer Gemini
+# Configurer Gemini (correct model name)
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-gemini_model = genai.GenerativeModel("models/gemini-pro")
+gemini_model = genai.GenerativeModel("gemini-pro")
 
 def summarize_with_openai(content):
     try:
@@ -84,14 +84,12 @@ def generate_swot_analysis(text_block):
 def compute_strategic_score(snippet, keywords):
     return sum(1 for kw in keywords if kw.lower() in snippet.lower())
 
-# Mots-clés permanents intégrés à toutes les recherches
 always_use_keywords = [
     "intelligence artificielle", "agents intelligents", "agentic AI", "rupture technologique",
     "machine learning", "technologie émergente", "IA générative", "recherche en IA",
     "automatisation intelligente", "innovation algorithmique", "GPT-4", "LLM"
 ]
 
-# Mots-clés pour idées innovantes
 INNOVATION_KEYWORDS = [
     "AI startup funding", "AI for operations", "enterprise automation trends",
     "predictive analytics in business", "intelligent agents in finance",
