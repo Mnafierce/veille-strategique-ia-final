@@ -5,7 +5,12 @@ from fetch_sources import (
     search_consensus_via_serpapi,
     search_with_perplexity, search_with_cse_sources
 )
-from summarizer import summarize_articles, summarize_text_block, generate_innovation_ideas, generate_strategic_recommendations, always_use_keywords, INNOVATION_KEYWORDS
+from summarizer import (
+    summarize_articles, summarize_text_block,
+    generate_innovation_ideas, generate_strategic_recommendations,
+    generate_swot_analysis, compute_strategic_score,
+    always_use_keywords, INNOVATION_KEYWORDS
+)
 from report_builder import build_report_view, generate_docx
 
 st.set_page_config(page_title="Veille stratégique IA", layout="wide")
@@ -16,11 +21,17 @@ Ce tableau de bord automatise la veille stratégique sur les agents IA dans les 
 ainsi que les innovations émergentes.
 """)
 
-# 🎛️ Sélection des secteurs d’intérêt
 st.sidebar.header("🍿️ Domaines ciblés")
 selected_sector = st.sidebar.radio("Choisis un secteur :", ["Santé", "Finance", "Tous"])
 
-# 🎛️ Modules à activer
+# Sous-thèmes dynamiques
+subtopics = {
+    "Santé": ["santé mentale", "diagnostic IA", "robotique chirurgicale"],
+    "Finance": ["fintech B2B", "analyse prédictive", "insurtech"],
+    "Tous": [""]
+}
+selected_subtopic = st.sidebar.selectbox("Sous-thème :", subtopics[selected_sector])
+
 st.sidebar.header("⚙️ Modules à activer")
 use_google_news = st.sidebar.checkbox("🌐 Google News", value=True)
 use_cse = st.sidebar.checkbox("🛁 Google CSE/TechCrunch/VB", value=True)
@@ -30,13 +41,12 @@ use_openai = st.sidebar.checkbox("💬 OpenAI", value=True)
 use_arxiv = st.sidebar.checkbox("📚 ArXiv (scientifique)", value=False)
 use_consensus = st.sidebar.checkbox("🔬 Consensus", value=False)
 
-# 🔄 Modes
 st.sidebar.header("⚡ Mode IA")
 fast_mode = st.sidebar.checkbox("Mode rapide (résumés limités)", value=True)
 salesforce_mode = st.sidebar.checkbox("💼 Mode Salesforce (recommandations commerciales)", value=False)
 show_ideas = st.sidebar.checkbox("💡 Afficher 5 idées innovantes de la semaine", value=True)
+show_swot = st.sidebar.checkbox("🧮 Générer une analyse SWOT", value=True)
 
-# 🔍 Mots-clés de base pour chaque secteur
 sector_keywords = {
     "Santé": ["Hippocratic AI", "AI in Healthcare", "One AI Health", "Amelia AI", "IA médicale"],
     "Finance": ["Finley AI", "Interface.ai", "AI in Finance", "automatisation bancaire"],
@@ -44,6 +54,8 @@ sector_keywords = {
 }
 
 keywords = sector_keywords[selected_sector] + INNOVATION_KEYWORDS + always_use_keywords
+if selected_subtopic:
+    keywords.append(selected_subtopic)
 
 if st.button("🚀 Lancer la veille stratégique"):
     progress = st.progress(0)
@@ -81,6 +93,18 @@ if st.button("🚀 Lancer la veille stratégique"):
     summary_24h = summarize_text_block(all_snippets)
     st.markdown(summary_24h)
 
+    if show_swot:
+        st.subheader("🧠 Analyse SWOT automatique")
+        swot_text = generate_swot_analysis(all_snippets)
+        st.markdown(swot_text)
+
+    st.subheader("📚 Résumés par sujet")
+    col1, col2 = st.columns(2)
+    for i, (topic, summary) in enumerate(summaries.items()):
+        with (col1 if i % 2 == 0 else col2):
+            st.markdown(f"### {topic}")
+            st.markdown(summary)
+
     with st.expander("📊 Rapport complet structuré"):
         build_report_view(summaries, articles)
 
@@ -102,3 +126,4 @@ if st.button("🚀 Lancer la veille stratégique"):
             file_name="rapport_veille.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         )
+
