@@ -1,5 +1,5 @@
-import requests
 import os
+import requests
 import feedparser
 from bs4 import BeautifulSoup
 
@@ -24,10 +24,10 @@ def fetch_google_news(keyword):
         for entry in feed.entries[:5]:
             news_list.append({
                 "keyword": keyword,
-                "title": entry.title,
+                "title": clean_text(entry.title),
                 "link": entry.link,
                 "snippet": clean_html(entry.summary),
-                "date": entry.get("published", "")
+                "date": entry.get("published", "")[:10] if entry.get("published") else ""
             })
         return news_list
     except Exception as e:
@@ -37,5 +37,10 @@ def clean_html(raw_html):
     try:
         soup = BeautifulSoup(raw_html, "html.parser")
         return soup.get_text()
-    except:
+    except Exception:
         return raw_html
+
+def clean_text(text):
+    if text:
+        return text.encode('utf-8', 'ignore').decode('utf-8')
+    return ""
