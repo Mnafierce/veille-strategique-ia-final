@@ -1,9 +1,9 @@
-streamlit>=1.33.0
-openai>=1.16.0
-google-generativeai>=0.3.2
-feedparser>=6.0.10
-requests>=2.31.0
-beautifulsoup4>=4.12.3
-streamlit-timeline
-python-docx
+streamlit>=1.22.0
+openai>=1.0.0
+google-generativeai
 aiohttp
+feedparser
+requests
+python-docx
+streamlit-timeline
+
