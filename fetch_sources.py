@@ -2,7 +2,7 @@ import os
 import requests
 import feedparser
 import google.generativeai as genai
-from openai import OpenAI
+import openai
 
 # Chargement des clés API
 SERPAPI_KEY = os.getenv("SERPAPI_KEY")
@@ -12,7 +12,7 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # Initialisation des clients
 genai.configure(api_key=GEMINI_API_KEY)
-openai_client = OpenAI(api_key=OPENAI_API_KEY)
+openai_client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
 # ----------- Gemini (fallback ou synthèse) ------------------
 def search_with_gemini(prompt):
@@ -37,7 +37,6 @@ def search_with_openai(question):
         )
         return response.choices[0].message.content
     except Exception as e:
-        # fallback Gemini
         try:
             return search_with_gemini(f"Synthèse sur {question}")
         except Exception as e2:
@@ -124,37 +123,3 @@ def search_with_serpapi(keyword):
         } for result in results]
     except Exception as e:
         return [{"keyword": keyword, "title": "Erreur SerpAPI", "link": "", "snippet": str(e)}]
-
-# ----------- Perplexity (non officiel ou clé privée) ------------------
-def search_with_perplexity(query):
-    try:
-        headers = {
-            "Authorization": f"Bearer {os.getenv('PERPLEXITY_API_KEY')}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "q": query,
-            "source": "web",
-            "autocomplete": False
-        }
-        response = requests.post("https://api.perplexity.ai/search", headers=headers, json=payload)
-        data = response.json()
-
-        articles = []
-        for item in data.get("results", [])[:5]:
-            articles.append({
-                "keyword": query,
-                "title": item.get("title"),
-                "link": item.get("url"),
-                "snippet": item.get("snippet", ""),
-                "date": item.get("published_at") or None
-            })
-        return articles
-    except Exception as e:
-        return [{
-            "keyword": query,
-            "title": "Erreur Perplexity",
-            "link": "",
-            "snippet": str(e),
-            "date": None
-        }]
