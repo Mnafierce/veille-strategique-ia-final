@@ -6,4 +6,6 @@ feedparser
 requests
 python-docx
 streamlit-timeline
+beautifulsoup4
+
 
