@@ -12,7 +12,7 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # Initialisation des clients
 genai.configure(api_key=GEMINI_API_KEY)
-openai_client = openai.OpenAI(api_key=OPENAI_API_KEY)
+openai.api_key = OPENAI_API_KEY
 
 # ----------- Gemini (fallback ou synthèse) ------------------
 def search_with_gemini(prompt):
@@ -26,7 +26,7 @@ def search_with_gemini(prompt):
 # ----------- OpenAI synthèse ------------------
 def search_with_openai(question):
     try:
-        response = openai_client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "Tu es un assistant de recherche stratégique."},
@@ -35,7 +35,7 @@ def search_with_openai(question):
             temperature=0.5,
             max_tokens=400
         )
-        return response.choices[0].message.content
+        return response["choices"][0]["message"]["content"]
     except Exception as e:
         try:
             return search_with_gemini(f"Synthèse sur {question}")
