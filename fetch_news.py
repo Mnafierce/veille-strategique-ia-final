@@ -18,7 +18,7 @@ def run_news_crawl(keywords, use_google_news=True):
 
 def fetch_google_news(keyword):
     try:
-        url = f"https://news.google.com/rss/search?q={keyword.replace(' ', '+')}"
+        url = f"https://news.google.com/rss/search?q={keyword.replace(' ', '+')}+when:7d&hl=fr&gl=FR&ceid=FR:fr"
         feed = feedparser.parse(url)
         news_list = []
         for entry in feed.entries[:5]:
@@ -26,7 +26,8 @@ def fetch_google_news(keyword):
                 "keyword": keyword,
                 "title": entry.title,
                 "link": entry.link,
-                "snippet": clean_html(entry.summary)
+                "snippet": clean_html(entry.summary),
+                "date": entry.get("published", "")
             })
         return news_list
     except Exception as e:
@@ -38,4 +39,3 @@ def clean_html(raw_html):
         return soup.get_text()
     except:
         return raw_html
-
