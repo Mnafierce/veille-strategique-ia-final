@@ -1,36 +1,39 @@
-# 🧠 Veille Stratégique – Agents IA en Santé, Finance & Innovation
+Veille Stratégique IA – Agents Agentiques
+📈 Présentation
+Cette application Streamlit automatise la veille stratégique sur l'émergence des agents autonomes (agentic AI) dans les domaines de :
 
-Ce tableau de bord Streamlit automatise la **veille technologique et stratégique** à l’aide de modèles IA avancés (GPT-4, Gemini, Perplexity) dans les domaines de :
+🏥 Santé
 
-- 💊 Santé
-- 💰 Finance
-- 💡 Innovation d’entreprise
+💰 Finance
 
-## 🔧 Fonctionnalités principales
+💡 Innovations technologiques
 
-✅ Recherche automatisée via :
-- Google News & Programmable Search (CSE)
-- TechCrunch, VentureBeat, PitchBook
-- Perplexity AI
-- ArXiv (recherche scientifique)
-- Consensus (résumés académiques)
+Elle est conçue pour des usages corporate comme Salesforce, permettant de détecter tendances, innovations, concurrents, opportunités.
 
-✅ Génération IA de :
-- Résumés par article (Gemini ou GPT-4)
-- Résumé exécutif des 24 dernières heures
-- Rapport structuré par thématique
-- Recommandations stratégiques personnalisées (avec mode Salesforce)
-- **5 idées innovantes générées chaque semaine**
+⚙️ Fonctionnalités principales
 
-✅ Interface interactive :
-- 🎛️ Sélection du secteur (Santé / Finance)
-- 🧠 Mode rapide (résumés limités)
-- 🧑‍💼 Mode Salesforce (recommandations commerciales)
-- 📥 Export DOCX téléchargeable
+Module	Description
+Résumés IA	Génération automatique de synthèses stratégiques (OpenAI GPT)
+Analyse SWOT Visuelle	Forces, Faiblesses, Opportunités, Menaces extraites et affichées
+Scoring stratégique	Score de pertinence sur 100 pour chaque article
+Timeline	Visualisation dynamique des tendances par mois
+Rapport DOCX	Export complet des synthèses en fichier Word
+Mode rapide asynchrone	Requêtes simultanées pour une veille rapide
+Recommandations Salesforce	Suggestions IA adaptées à la stratégie CRM/Produit
+🛠 Technologies utilisées
+Streamlit
 
----
+OpenAI GPT-4
 
-## 🚀 Lancer l'application
+Google Generative AI
+
+Perplexity AI
+
+ArXiv API
+
+BeautifulSoup4
+
+
 
 ### 1. Installation des dépendances
 
