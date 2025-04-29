@@ -1,13 +1,13 @@
 import os
 from collections import defaultdict
-from openai import OpenAI
+import openai
 
-# Initialiser OpenAI client
-openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# Nouvelle initialisation OpenAI client
+client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def summarize_with_openai(content):
     try:
-        response = openai_client.chat.completions.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "Tu es un expert en veille technologique. Résume de manière claire et concise pour un décideur."},
@@ -38,7 +38,7 @@ def summarize_articles(articles, limit=None):
 
 def summarize_text_block(text):
     try:
-        response = openai_client.chat.completions.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "Tu es un analyste stratégique. Résume les événements clés des dernières 24h à partir de ce texte brut."},
@@ -53,7 +53,7 @@ def summarize_text_block(text):
 
 def generate_swot_analysis(text_block):
     try:
-        response = openai_client.chat.completions.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "Tu es un consultant stratégique. Analyse le texte et propose une grille SWOT pour l’entreprise Salesforce sur les agents agentiques IA."},
@@ -84,7 +84,7 @@ INNOVATION_KEYWORDS = [
 
 def generate_innovation_ideas(text_block):
     try:
-        response = openai_client.chat.completions.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "Tu es un générateur d’idées d’innovation pour les grandes entreprises tech."},
@@ -100,7 +100,7 @@ def generate_innovation_ideas(text_block):
 def generate_strategic_recommendations(text_block, mode="default"):
     prompt = f"Tu es un expert en stratégie IA. Donne 5 recommandations pour {mode} à partir du contenu suivant :\n{text_block}"
     try:
-        response = openai_client.chat.completions.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "Fournis des recommandations pratiques et stratégiques."},
@@ -113,5 +113,3 @@ def generate_strategic_recommendations(text_block, mode="default"):
     except Exception:
         return ["[Erreur génération recommandations]"]
 
-    except Exception:
-        return ["[Erreur génération recommandations]"]
