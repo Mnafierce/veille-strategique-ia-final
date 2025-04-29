@@ -157,6 +157,13 @@ if st.button("🚀 Lancer la veille stratégique"):
     for i, (topic, summary) in enumerate(summaries.items()):
         with (col1 if i % 2 == 0 else col2):
             st.markdown(f"### {topic}")
+            score = compute_strategic_score(summary, keywords)
+            if score >= 70:
+                st.success(f"Pertinence stratégique : {score}% ✅")
+            elif score >= 40:
+                st.warning(f"Pertinence stratégique : {score}% 🟠")
+            else:
+                st.error(f"Pertinence stratégique : {score}% 🔴")
             st.markdown(summary)
 
     with st.expander("📊 Rapport complet structuré"):
