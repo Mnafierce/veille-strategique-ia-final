@@ -2,6 +2,7 @@ import aiohttp
 import asyncio
 import feedparser
 import os
+import urllib.parse
 
 # Chargement des clés API
 SERPAPI_KEY = os.getenv("SERPAPI_KEY")
@@ -53,7 +54,7 @@ async def async_search_with_perplexity(session, keyword):
 
 async def async_search_arxiv(session, keyword):
     try:
-        query = f"http://export.arxiv.org/api/query?search_query=all:{keyword}&start=0&max_results=5"
+        query = f"http://export.arxiv.org/api/query?search_query=all:{urllib.parse.quote(keyword)}&start=0&max_results=5"
         loop = asyncio.get_event_loop()
         feed = await loop.run_in_executor(None, feedparser.parse, query)
         return [{
@@ -86,7 +87,6 @@ async def async_search_consensus(session, keyword):
     except Exception as e:
         return [{"keyword": keyword, "title": "Erreur Consensus", "link": "", "snippet": str(e)}]
 
-# Fonction principale parallèle
 async def run_async_sources(keywords, use_cse, use_perplexity, use_arxiv, use_consensus):
     results = []
     async with aiohttp.ClientSession() as session:
@@ -101,8 +101,11 @@ async def run_async_sources(keywords, use_cse, use_perplexity, use_arxiv, use_co
             if use_consensus:
                 tasks.append(async_search_consensus(session, keyword))
 
-        responses = await asyncio.gather(*tasks)
+        responses = await asyncio.gather(*tasks, return_exceptions=True)
         for batch in responses:
+            if isinstance(batch, Exception):
+                continue
             results.extend(batch)
     return results
 
+__all__ = ['run_async_sources']
