@@ -3,6 +3,7 @@ import datetime
 import asyncio
 import time
 import re
+from collections import defaultdict
 from fetch_news import run_news_crawl
 from fetch_sources import (
     search_with_openai, search_arxiv,
@@ -180,10 +181,20 @@ if st.button("🚀 Lancer la veille stratégique"):
             st.markdown(f"✅ {reco}")
 
     st.subheader("🕒 Timeline des sujets stratégiques")
-    events = []
+
+    # Nouvelle Timeline Groupée par Mois
+    articles_by_month = defaultdict(list)
     for article in articles:
         date_str = article.get("date") or datetime.datetime.now().isoformat()
         date = datetime.datetime.fromisoformat(date_str[:19])
+        month_key = date.strftime("%Y-%m")
+        articles_by_month[month_key].append(article)
+
+    events = []
+    for month, month_articles in articles_by_month.items():
+        year, month_num = map(int, month.split("-"))
+        headline = f"Tendances {datetime.date(year, month_num, 1).strftime('%B %Y')}"
+        text = "\n".join(f"- {art.get('title', 'Sans titre')}" for art in month_articles)
         color_map = {
             "Santé": "#1f77b4",
             "Finance": "#ff7f0e",
@@ -191,18 +202,19 @@ if st.button("🚀 Lancer la veille stratégique"):
         }
         events.append({
             "start_date": {
-                "year": date.year,
-                "month": date.month,
-                "day": date.day
+                "year": year,
+                "month": month_num,
+                "day": 1
             },
             "text": {
-                "headline": article.get("title", "Sans titre"),
-                "text": article.get("snippet", "")[:300] + "..."
+                "headline": headline,
+                "text": text[:1000]  # Limite texte affiché
             },
             "group": selected_subtopic or selected_sector,
             "background": color_map.get(selected_sector, "#999999")
         })
-    timeline({"title": {"text": {"headline": "Évolution des agents IA par thème"}}, "events": events})
+
+    timeline({"title": {"text": {"headline": "Évolution des agents IA par mois"}}, "events": events})
 
     if summaries:
         docx_file = generate_docx(summaries, articles)
@@ -212,3 +224,4 @@ if st.button("🚀 Lancer la veille stratégique"):
             file_name="rapport_veille.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         )
+
