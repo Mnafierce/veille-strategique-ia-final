@@ -2,6 +2,7 @@ import streamlit as st
 import datetime
 import asyncio
 import time
+import re
 from fetch_news import run_news_crawl
 from fetch_sources import (
     search_with_openai, search_arxiv,
@@ -18,6 +19,30 @@ from report_builder import build_report_view, generate_docx
 from streamlit_timeline import timeline
 from async_sources import run_async_sources
 
+def display_swot_table(swot_text):
+    forces = re.findall(r"(?i)forces?:\s*(.*)", swot_text)
+    faiblesses = re.findall(r"(?i)faiblesses?:\s*(.*)", swot_text)
+    opportunites = re.findall(r"(?i)opportunités?:\s*(.*)", swot_text)
+    menaces = re.findall(r"(?i)menaces?:\s*(.*)", swot_text)
+
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.markdown("### 🟢 Forces")
+        for f in forces:
+            st.markdown(f"- {f}" if f else "- Non détecté")
+    with col2:
+        st.markdown("### 🔴 Faiblesses")
+        for w in faiblesses:
+            st.markdown(f"- {w}" if w else "- Non détecté")
+    with col3:
+        st.markdown("### 🔵 Opportunités")
+        for o in opportunites:
+            st.markdown(f"- {o}" if o else "- Non détecté")
+    with col4:
+        st.markdown("### 🟠 Menaces")
+        for t in menaces:
+            st.markdown(f"- {t}" if t else "- Non détecté")
+
 st.set_page_config(page_title="Veille stratégique IA", layout="wide")
 st.title("\U0001F4CA Tableau de bord IA – Stratégie & Innovation")
 
@@ -29,7 +54,6 @@ ainsi que les innovations émergentes.
 st.sidebar.header("🍿️ Domaines ciblés")
 selected_sector = st.sidebar.radio("Choisis un secteur :", ["Santé", "Finance", "Tous"])
 
-# Sous-thèmes dynamiques
 subtopics = {
     "Santé": ["santé mentale", "diagnostic IA", "robotique chirurgicale"],
     "Finance": ["fintech B2B", "analyse prédictive", "insurtech"],
@@ -107,6 +131,16 @@ if st.button("🚀 Lancer la veille stratégique"):
     with st.spinner("🧠 Résumés générés par IA..."):
         summaries = summarize_articles(articles, limit=5 if fast_mode else None)
 
+    success_count = 0
+    fail_count = 0
+    for topic_summary in summaries.values():
+        if "Résumé indisponible" in topic_summary:
+            fail_count += 1
+        else:
+            success_count += 1
+
+    st.info(f"🧠 Résumés générés : {success_count} | ❌ Résumés échoués : {fail_count}")
+
     st.subheader("📌 Résumé exécutif – dernières 24h")
     all_snippets = "\n".join([a['snippet'] for a in articles])
     summary_24h = summarize_text_block(all_snippets)
@@ -116,6 +150,7 @@ if st.button("🚀 Lancer la veille stratégique"):
         st.subheader("🧠 Analyse SWOT automatique")
         swot_text = generate_swot_analysis(all_snippets)
         st.markdown(swot_text)
+        display_swot_table(swot_text)
 
     st.subheader("📚 Résumés par sujet")
     col1, col2 = st.columns(2)
