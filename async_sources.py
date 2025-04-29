@@ -1,106 +1,114 @@
-import aiohttp
-import asyncio
-import feedparser
 import os
+from collections import defaultdict
+from openai import OpenAI
 
-SERPAPI_KEY = os.getenv("SERPAPI_KEY")
-GOOGLE_CSE_ID = os.getenv("GOOGLE_CSE_ID")
-PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY")
+# Initialiser OpenAI client
+openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-async def fetch_json(session, url, params=None, headers=None, method="GET", json_body=None):
-    async with session.request(method, url, params=params, headers=headers, json=json_body) as response:
-        return await response.json()
-
-async def async_search_with_cse(session, keyword):
-    url = "https://www.googleapis.com/customsearch/v1"
-    params = {
-        "q": keyword,
-        "cx": GOOGLE_CSE_ID,
-        "key": SERPAPI_KEY,
-        "hl": "fr",
-        "num": 5
-    }
+def summarize_with_openai(content):
     try:
-        data = await fetch_json(session, url, params=params)
-        return [{
-            "keyword": keyword,
-            "title": r.get("title"),
-            "link": r.get("link"),
-            "snippet": r.get("snippet", "")
-        } for r in data.get("items", [])]
-    except Exception as e:
-        return [{"keyword": keyword, "title": "Erreur CSE", "link": "", "snippet": str(e)}]
+        response = openai_client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Tu es un expert en veille technologique. Résume de manière claire et concise pour un décideur."},
+                {"role": "user", "content": content}
+            ],
+            temperature=0.4,
+            max_tokens=300
+        )
+        return response.choices[0].message.content
+    except Exception:
+        return "Résumé indisponible (OpenAI échoué)"
 
-async def async_search_with_perplexity(session, keyword):
-    url = "https://api.perplexity.ai/search"
-    headers = {
-        "Authorization": f"Bearer {PERPLEXITY_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    payload = {"q": keyword, "source": "web", "autocomplete": False}
+def summarize_articles(articles, limit=None):
+    summaries = defaultdict(str)
+    topics = set([a["keyword"] for a in articles])
+
+    for topic in topics:
+        topic_articles = [a for a in articles if a["keyword"] == topic]
+        if limit:
+            topic_articles = topic_articles[:limit]
+
+        for article in topic_articles:
+            content = f"Titre: {article['title']}\nExtrait: {article['snippet']}\nLien: {article['link']}"
+            summary = summarize_with_openai(content)
+            summaries[topic] += f"- {summary}\n\n"
+
+    return summaries
+
+def summarize_text_block(text):
     try:
-        data = await fetch_json(session, url, headers=headers, method="POST", json_body=payload)
-        return [{
-            "keyword": keyword,
-            "title": r.get("title"),
-            "link": r.get("url"),
-            "snippet": r.get("snippet", ""),
-            "date": r.get("published_at")
-        } for r in data.get("results", [])[:5]]
-    except Exception as e:
-        return [{"keyword": keyword, "title": "Erreur Perplexity", "link": "", "snippet": str(e), "date": None}]
+        response = openai_client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Tu es un analyste stratégique. Résume les événements clés des dernières 24h à partir de ce texte brut."},
+                {"role": "user", "content": text}
+            ],
+            temperature=0.4,
+            max_tokens=500
+        )
+        return response.choices[0].message.content
+    except Exception:
+        return "Résumé exécutif indisponible (OpenAI échoué)"
 
-async def async_search_arxiv(session, keyword):
+def generate_swot_analysis(text_block):
     try:
-        query = f"http://export.arxiv.org/api/query?search_query=all:{keyword}&start=0&max_results=5"
-        loop = asyncio.get_event_loop()
-        feed = await loop.run_in_executor(None, feedparser.parse, query)
-        return [{
-            "keyword": keyword,
-            "title": entry.title,
-            "link": entry.link,
-            "snippet": entry.summary
-        } for entry in feed.entries]
-    except Exception as e:
-        return [{"keyword": keyword, "title": "Erreur ArXiv", "link": "", "snippet": str(e)}]
+        response = openai_client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Tu es un consultant stratégique. Analyse le texte et propose une grille SWOT pour l’entreprise Salesforce sur les agents agentiques IA."},
+                {"role": "user", "content": text_block}
+            ],
+            temperature=0.5,
+            max_tokens=800
+        )
+        return response.choices[0].message.content
+    except Exception:
+        return "Analyse SWOT indisponible (OpenAI échoué)"
 
-async def async_search_consensus(session, keyword):
-    url = "https://serpapi.com/search"
-    params = {
-        "q": f"{keyword} site:consensus.app",
-        "api_key": SERPAPI_KEY,
-        "engine": "google",
-        "hl": "fr",
-        "gl": "ca",
-        "num": 5
-    }
+def compute_strategic_score(snippet, keywords):
+    return sum(1 for kw in keywords if kw.lower() in snippet.lower())
+
+always_use_keywords = [
+    "intelligence artificielle", "agents intelligents", "agentic AI", "rupture technologique",
+    "machine learning", "technologie émergente", "IA générative", "recherche en IA",
+    "automatisation intelligente", "innovation algorithmique", "GPT-4", "LLM"
+]
+
+INNOVATION_KEYWORDS = [
+    "AI startup funding", "AI for operations", "enterprise automation trends",
+    "predictive analytics in business", "intelligent agents in finance",
+    "AI-powered decision-making", "AI trends in business strategy",
+    "generative AI in enterprise", "AI and customer engagement", "future of automation"
+]
+
+def generate_innovation_ideas(text_block):
     try:
-        data = await fetch_json(session, url, params=params)
-        return [{
-            "keyword": keyword,
-            "title": r.get("title"),
-            "link": r.get("link"),
-            "snippet": r.get("snippet", "")
-        } for r in data.get("organic_results", [])]
-    except Exception as e:
-        return [{"keyword": keyword, "title": "Erreur Consensus", "link": "", "snippet": str(e)}]
+        response = openai_client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Tu es un générateur d’idées d’innovation pour les grandes entreprises tech."},
+                {"role": "user", "content": f"À partir de ce contenu :\n{text_block}\nPropose 5 idées innovantes utilisables par Salesforce dans le domaine des agents IA autonomes."}
+            ],
+            temperature=0.7,
+            max_tokens=400
+        )
+        return response.choices[0].message.content.split("\n")
+    except Exception:
+        return ["[Erreur génération idées OpenAI échoué]"]
 
-# Fonction principale parallèle
-async def run_async_sources(keywords, use_cse, use_perplexity, use_arxiv, use_consensus):
-    results = []
-    async with aiohttp.ClientSession() as session:
-        tasks = []
-        for keyword in keywords:
-            if use_cse:
-                tasks.append(async_search_with_cse(session, keyword))
-            if use_perplexity:
-                tasks.append(async_search_with_perplexity(session, keyword))
-            if use_arxiv:
-                tasks.append(async_search_arxiv(session, keyword))
-            if use_consensus:
-                tasks.append(async_search_consensus(session, keyword))
-
-        responses = await asyncio.gather(*tasks)
-        for batch in responses:
-            results.extend(batch)
-    return results
+def generate_strategic_recommendations(text_block, mode="default"):
+    prompt = f"Tu es un expert en stratégie IA. Donne 5 recommandations pour {mode} à partir du contenu suivant :\n{text_block}"
+    try:
+        response = openai_client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Fournis des recommandations pratiques et stratégiques."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.6,
+            max_tokens=400
+        )
+        return response.choices[0].message.content.split("\n")
+    except Exception:
+        return ["[Erreur génération recommandations OpenAI échoué]"]
