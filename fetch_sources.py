@@ -14,8 +14,35 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 genai.configure(api_key=GEMINI_API_KEY)
 openai.api_key = OPENAI_API_KEY
 
+# ----------- Gemini (fallback ou synthèse) ------------------
+def search_with_gemini(prompt):
+    try:
+        model = genai.GenerativeModel("models/chat-bison-001")
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        return f"[Erreur Gemini] {e}"
 
-# Ajout de la fonction search_with_perplexity
+# ----------- OpenAI synthèse ------------------
+def search_with_openai(question):
+    try:
+        response = openai.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Tu es un assistant de recherche stratégique."},
+                {"role": "user", "content": f"Fais une synthèse des tendances sur : {question}"}
+            ],
+            temperature=0.5,
+            max_tokens=400
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        try:
+            return search_with_gemini(f"Synthèse sur {question}")
+        except Exception as e2:
+            return f"[Erreur complète OpenAI+Gemini] {e2}"
+
+# ----------- Perplexity ------------------
 def search_with_perplexity(keyword):
     try:
         url = "https://api.perplexity.ai/search"
@@ -35,34 +62,6 @@ def search_with_perplexity(keyword):
         } for r in data.get("results", [])[:5]]
     except Exception as e:
         return [{"keyword": keyword, "title": "Erreur Perplexity", "link": "", "snippet": str(e)}]
-
-# ----------- Gemini (fallback ou synthèse) ------------------
-def search_with_gemini(prompt):
-    try:
-        model = genai.GenerativeModel("models/chat-bison-001")
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        return f"[Erreur Gemini] {e}"
-
-# ----------- OpenAI synthèse ------------------
-def search_with_openai(question):
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "Tu es un assistant de recherche stratégique."},
-                {"role": "user", "content": f"Fais une synthèse des tendances sur : {question}"}
-            ],
-            temperature=0.5,
-            max_tokens=400
-        )
-        return response["choices"][0]["message"]["content"]
-    except Exception as e:
-        try:
-            return search_with_gemini(f"Synthèse sur {question}")
-        except Exception as e2:
-            return f"[Erreur complète OpenAI+Gemini] {e2}"
 
 # ----------- Consensus (via SerpAPI) ------------------
 def search_consensus_via_serpapi(keyword):
@@ -145,4 +144,5 @@ def search_with_serpapi(keyword):
         } for result in results]
     except Exception as e:
         return [{"keyword": keyword, "title": "Erreur SerpAPI", "link": "", "snippet": str(e)}]
+
 
