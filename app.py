@@ -41,7 +41,6 @@ st.sidebar.header("⚙️ Modules à activer")
 use_google_news = st.sidebar.checkbox("🌐 Google News", value=True)
 use_cse = st.sidebar.checkbox("🛁 Google CSE/TechCrunch/VB", value=True)
 use_perplexity = st.sidebar.checkbox("🧠 Perplexity AI", value=True)
-use_gemini = st.sidebar.checkbox("🤖 Gemini", value=True)
 use_openai = st.sidebar.checkbox("💬 OpenAI", value=True)
 use_arxiv = st.sidebar.checkbox("📚 ArXiv (scientifique)", value=False)
 use_consensus = st.sidebar.checkbox("🔬 Consensus", value=False)
@@ -69,7 +68,9 @@ if st.button("🚀 Lancer la veille stratégique"):
 
     if fast_mode:
         st.info("Mode rapide activé : les requêtes sont parallélisées.")
-        articles = asyncio.run(run_async_sources(
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        articles = loop.run_until_complete(run_async_sources(
             keywords,
             use_cse=use_cse,
             use_perplexity=use_perplexity,
