@@ -14,6 +14,28 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 genai.configure(api_key=GEMINI_API_KEY)
 openai.api_key = OPENAI_API_KEY
 
+
+# Ajout de la fonction search_with_perplexity
+def search_with_perplexity(keyword):
+    try:
+        url = "https://api.perplexity.ai/search"
+        headers = {
+            "Authorization": f"Bearer {os.getenv('PERPLEXITY_API_KEY')}",
+            "Content-Type": "application/json"
+        }
+        payload = {"q": keyword, "source": "web", "autocomplete": False}
+        response = requests.post(url, headers=headers, json=payload)
+        data = response.json()
+        return [{
+            "keyword": keyword,
+            "title": r.get("title"),
+            "link": r.get("url"),
+            "snippet": r.get("snippet", ""),
+            "date": r.get("published_at")
+        } for r in data.get("results", [])[:5]]
+    except Exception as e:
+        return [{"keyword": keyword, "title": "Erreur Perplexity", "link": "", "snippet": str(e)}]
+
 # ----------- Gemini (fallback ou synthèse) ------------------
 def search_with_gemini(prompt):
     try:
@@ -123,3 +145,4 @@ def search_with_serpapi(keyword):
         } for result in results]
     except Exception as e:
         return [{"keyword": keyword, "title": "Erreur SerpAPI", "link": "", "snippet": str(e)}]
+
