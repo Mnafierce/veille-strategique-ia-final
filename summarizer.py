@@ -1,14 +1,9 @@
 import os
 from collections import defaultdict
 from openai import OpenAI
-import google.generativeai as genai
 
 # Initialiser OpenAI client
 openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-# Configurer Gemini (correct model name)
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-gemini_model = genai.GenerativeModel("gemini-pro")
 
 def summarize_with_openai(content):
     try:
@@ -23,16 +18,9 @@ def summarize_with_openai(content):
         )
         return response.choices[0].message.content
     except Exception:
-        return None
+        return "Résumé indisponible"
 
-def summarize_with_gemini(content):
-    try:
-        response = gemini_model.generate_content(content)
-        return response.text
-    except Exception as e:
-        return f"[Erreur Gemini] {str(e)}"
-
-def summarize_articles(articles, limit=None, use_gemini=False):
+def summarize_articles(articles, limit=None):
     summaries = defaultdict(str)
     topics = set([a["keyword"] for a in articles])
 
@@ -44,9 +32,6 @@ def summarize_articles(articles, limit=None, use_gemini=False):
         for article in topic_articles:
             content = f"Titre: {article['title']}\nExtrait: {article['snippet']}\nLien: {article['link']}"
             summary = summarize_with_openai(content)
-            if summary is None:
-                summary = summarize_with_gemini(content)
-
             summaries[topic] += f"- {summary}\n\n"
 
     return summaries
@@ -64,7 +49,7 @@ def summarize_text_block(text):
         )
         return response.choices[0].message.content
     except Exception:
-        return summarize_with_gemini(f"Résume les grandes tendances de ces extraits d'actualités :\n{text}")
+        return "Résumé exécutif indisponible"
 
 def generate_swot_analysis(text_block):
     try:
@@ -79,7 +64,7 @@ def generate_swot_analysis(text_block):
         )
         return response.choices[0].message.content
     except Exception:
-        return summarize_with_gemini(f"Fais une analyse SWOT à partir de ce contenu :\n{text_block}")
+        return "Analyse SWOT indisponible"
 
 def compute_strategic_score(snippet, keywords):
     return sum(1 for kw in keywords if kw.lower() in snippet.lower())
@@ -125,5 +110,8 @@ def generate_strategic_recommendations(text_block, mode="default"):
             max_tokens=400
         )
         return response.choices[0].message.content.split("\n")
+    except Exception:
+        return ["[Erreur génération recommandations]"]
+
     except Exception:
         return ["[Erreur génération recommandations]"]
