@@ -68,24 +68,66 @@ def summarize_articles(articles, limit=None):
                 summaries[topic].append(f"🔗 [Voir l'article]({link})\nRésumé indisponible (erreur API)")
     return summaries
 
-# fetch_sources.py
-import os
-import requests
-import feedparser
-import google.generativeai as genai
-
-SERPAPI_KEY = os.getenv("SERPAPI_KEY")
-GOOGLE_CSE_ID = os.getenv("GOOGLE_CSE_ID")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
-genai.configure(api_key=GEMINI_API_KEY)
-
-def search_with_gemini(prompt):
+def generate_swot_analysis(text):
+    if not text.strip() or not openai.api_key:
+        return "Analyse SWOT indisponible"
     try:
-        model = genai.GenerativeModel("models/chat-bison-001")
-        response = model.generate_content(prompt)
-        return response.text
-    except Exception as e:
-        return f"[Erreur Gemini] {e}"
+        response = openai.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Tu es un analyste stratégique spécialisé en SWOT."},
+                {"role": "user", "content": f"Fais une analyse SWOT basée sur ce texte : {text[:1000]}"}
+            ],
+            temperature=0.3,
+            max_tokens=300
+        )
+        return response.choices[0].message.content.strip()
+    except:
+        return "Analyse SWOT indisponible"
+
+def generate_innovation_ideas(text):
+    if not text.strip() or not openai.api_key:
+        return ["[Erreur génération idées]"]
+    try:
+        response = openai.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Tu es un stratège de l'innovation."},
+                {"role": "user", "content": f"Génère 5 idées d'application innovantes de l'IA basées sur : {text[:1000]}"}
+            ],
+            temperature=0.6,
+            max_tokens=300
+        )
+        return response.choices[0].message.content.strip().split("\n")
+    except:
+        return ["[Erreur génération idées]"]
+
+def generate_strategic_recommendations(text, mode="general"):
+    if not text.strip() or not openai.api_key:
+        return ["[Erreur génération recommandations]"]
+    try:
+        prompt = f"Donne des recommandations stratégiques{' pour Salesforce' if mode=='salesforce' else ''} à partir du texte suivant : {text[:1000]}"
+        response = openai.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Tu es un consultant en stratégie IA."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.5,
+            max_tokens=300
+        )
+        return response.choices[0].message.content.strip().split("\n")
+    except:
+        return ["[Erreur génération recommandations]"]
+
+def compute_strategic_score(text):
+    try:
+        keywords = INNOVATION_KEYWORDS + always_use_keywords
+        text_lower = text.lower()
+        hits = sum(1 for k in keywords if k.lower() in text_lower)
+        score = int((hits / len(keywords)) * 100)
+        return min(score, 100)
+    except:
+        return 0
+
 
