@@ -6,8 +6,9 @@ from fetch_news import run_news_crawl
 from fetch_sources import (
     search_with_openai, search_arxiv,
     search_consensus_via_serpapi,
-    search_with_perplexity, search_with_google_cse as search_with_cse_sources
+    search_with_google_cse as search_with_cse_sources
 )
+
 from summarizer import (
     summarize_articles, summarize_text_block,
     generate_innovation_ideas, generate_strategic_recommendations,
