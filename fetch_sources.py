@@ -11,11 +11,15 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # Initialisation des clients
-genai.configure(api_key=GEMINI_API_KEY)
 openai.api_key = OPENAI_API_KEY
+USE_GEMINI = bool(GEMINI_API_KEY)
+if USE_GEMINI:
+    genai.configure(api_key=GEMINI_API_KEY)
 
 # ----------- Gemini (fallback ou synthèse) ------------------
 def search_with_gemini(prompt):
+    if not USE_GEMINI:
+        return "[Gemini désactivé]"
     try:
         model = genai.GenerativeModel("models/chat-bison-001")
         response = model.generate_content(prompt)
@@ -25,6 +29,8 @@ def search_with_gemini(prompt):
 
 # ----------- OpenAI synthèse ------------------
 def search_with_openai(question):
+    if not OPENAI_API_KEY:
+        return "[Erreur OpenAI] Clé API manquante"
     try:
         response = openai.chat.completions.create(
             model="gpt-3.5-turbo",
@@ -91,6 +97,8 @@ def search_with_google_cse(keyword):
             "num": 5
         }
         response = requests.get(url, params=params)
+        if response.status_code == 429:
+            return [{"keyword": keyword, "title": "Erreur quota Google CSE", "link": "", "snippet": "Quota dépassé"}]
         results = response.json().get("items", [])
         return [{
             "keyword": keyword,
