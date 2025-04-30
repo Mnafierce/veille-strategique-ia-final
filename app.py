@@ -3,8 +3,6 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 from datetime import datetime
-import uuid
-import re
 from typing import List, Dict
 
 # Configuration des mots-clés par secteur, sujet et pays
@@ -50,21 +48,44 @@ def fetch_articles(query: str, max_results: int = 5) -> List[Dict]:
     return articles
 
 # Fonction pour collecter des études via Semantic Scholar
+from bs4 import BeautifulSoup
+import requests
+from typing import List, Dict
+
 def fetch_studies(query: str, max_results: int = 3) -> List[Dict]:
     studies = []
     try:
-        url = f"https://api.semanticscholar.org/graph/v1/paper/search?query={query}&limit={max_results}"
-        response = requests.get(url)
-        data = response.json()
-        for paper in data.get('data', []):
+        # Formatter la requête pour l'URL de recherche
+        query = query.replace(' ', '+')
+        url = f"https://www.semanticscholar.org/search?q={query}&sort=relevance"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()  # Vérifier si la requête a réussi
+
+        # Parser le HTML
+        soup = BeautifulSoup(response.text, 'html.parser')
+        results = soup.find_all('div', class_='cl-paper-row')[:max_results]
+
+        for result in results:
+            title_tag = result.find('h2', class_='cl-paper-title')
+            link_tag = result.find('a', class_='cl-paper-title')
+            date_tag = result.find('span', class_='cl-paper-pubdate')
+
+            title = title_tag.text.strip() if title_tag else 'N/A'
+            url = f"https://www.semanticscholar.org{link_tag['href']}" if link_tag else '#'
+            date = date_tag.text.strip() if date_tag else 'N/A'
+
             studies.append({
-                "title": paper.get('title', 'N/A'),
-                "url": paper.get('url', '#'),
-                "source": "Semantic Scholar",
-                "date": paper.get('year', 'N/A')
+                'title': title,
+                'url': url,
+                'source': 'Semantic Scholar',
+                'date': date
             })
+
     except Exception as e:
-        st.error(f"Erreur lors de la collecte des études : {e}")
+        st.error(f"Erreur lors du scraping de Semantic Scholar : {e}")
     return studies
 
 # Fonction pour générer un résumé exécutif (simulé, à remplacer par Grok ou autre IA)
@@ -173,4 +194,3 @@ if st.button("Exporter les résultats"):
     df = pd.DataFrame(results)
     csv = df.to_csv(index=False)
     st.download_button("Télécharger CSV", csv, "veille_strategique.csv", "text/csv")
-
