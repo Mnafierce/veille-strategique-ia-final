@@ -1,8 +1,10 @@
-streamlit==1.31.1
+streamlit==1.45.0
 requests==2.31.0
 beautifulsoup4==4.12.3
 pandas==2.2.0
-scikit-learn==1.5.2  # Mise à jour vers une version compatible
+scikit-learn==1.5.2
 plotly==5.20.0
-deep_translator==1.11.1  # Remplacement de googletrans
+deep_translator==1.11.1
 schedule==1.2.1
+lxml==5.3.0
+feedparser==6.0.11
