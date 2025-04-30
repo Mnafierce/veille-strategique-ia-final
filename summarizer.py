@@ -2,7 +2,8 @@ import os
 import openai
 from collections import defaultdict
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# ✅ Ajout pour lire la clé depuis l'env
+openai.api_key = os.getenv("OPENAI_API_KEY") or ""
 
 INNOVATION_KEYWORDS = [
     "GPT-4", "LLM", "IA générative", "agentic AI", "automatisation intelligente",
@@ -14,7 +15,7 @@ always_use_keywords = [
 ]
 
 def summarize_text_block(text):
-    if not text.strip():
+    if not text.strip() or not openai.api_key:
         return "Résumé exécutif indisponible"
     try:
         response = openai.chat.completions.create(
@@ -34,10 +35,18 @@ def summarize_articles(articles, limit=None):
     summaries = defaultdict(list)
     for article in articles[:limit] if limit else articles:
         text = article.get("snippet", "")
+        link = article.get("link", "")
+        topic = article.get("keyword", "Autre")
+
         if not text.strip():
+            summaries[topic].append(f"🔗 [Voir l'article]({link})\nRésumé indisponible")
             continue
+
+        if not openai.api_key:
+            summaries[topic].append(f"🔗 [Voir l'article]({link})\nRésumé indisponible (clé API manquante)")
+            continue
+
         try:
-            topic = article.get("keyword", "Autre")
             response = openai.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
@@ -48,14 +57,13 @@ def summarize_articles(articles, limit=None):
                 max_tokens=200
             )
             summary = response.choices[0].message.content.strip()
-            link = article.get("link", "")
             summaries[topic].append(f"🔗 [Voir l'article]({link})\n💬 {summary}")
         except:
-            continue
+            summaries[topic].append(f"🔗 [Voir l'article]({link})\nRésumé indisponible (erreur API)")
     return summaries
 
 def generate_swot_analysis(text):
-    if not text.strip():
+    if not text.strip() or not openai.api_key:
         return "Analyse SWOT indisponible"
     try:
         response = openai.chat.completions.create(
@@ -72,9 +80,9 @@ def generate_swot_analysis(text):
         return "Analyse SWOT indisponible"
 
 def generate_innovation_ideas(text):
+    if not text.strip() or not openai.api_key:
+        return ["[Erreur génération idées]"]
     try:
-        if not text.strip():
-            return ["Pas d'idées générées (texte vide)."]
         response = openai.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
@@ -89,6 +97,8 @@ def generate_innovation_ideas(text):
         return ["[Erreur génération idées]"]
 
 def generate_strategic_recommendations(text, mode="general"):
+    if not text.strip() or not openai.api_key:
+        return ["[Erreur génération recommandations]"]
     try:
         prompt = f"Donne des recommandations stratégiques{' pour Salesforce' if mode=='salesforce' else ''} à partir du texte suivant : {text[:3500]}"
         response = openai.chat.completions.create(
