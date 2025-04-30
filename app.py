@@ -7,7 +7,7 @@ from fetch_news import run_news_crawl
 from fetch_sources import (
     search_with_openai, search_arxiv,
     search_consensus_via_serpapi,
-    search_with_perplexity, search_with_google_cse as search_with_cse_sources
+    search_with_google_cse as search_with_cse_sources
 )
 from summarizer import (
     summarize_articles, summarize_text_block,
@@ -175,3 +175,4 @@ if st.button("\U0001F680 Lancer la veille stratégique"):
             file_name="rapport_veille.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         )
+
