@@ -2,6 +2,9 @@ import streamlit as st
 import datetime
 import asyncio
 import time
+import pandas as pd
+import json
+
 from fetch_news import run_news_crawl
 from fetch_sources import (
     search_with_openai, search_arxiv,
@@ -109,7 +112,10 @@ if st.button("\U0001F680 Lancer la veille stratégique"):
     st.markdown(f"🧠 Résumés générés : {success} | ❌ Résumés échoués : {total - success}")
 
     st.subheader("📌 Résumé exécutif – dernières 24h")
-    all_snippets = "\n".join([a['snippet'] for a in articles if a.get('snippet')])
+    all_snippets = "\n".join([
+        a['snippet'] for a in articles
+        if a.get('snippet') and not a.get('snippet', '').startswith("Erreur")
+    ])
     summary_24h = summarize_text_block(all_snippets)
     st.markdown(summary_24h)
 
@@ -141,16 +147,18 @@ if st.button("\U0001F680 Lancer la veille stratégique"):
 
     st.subheader("\U0001F551 Timeline des sujets stratégiques")
     events = []
+    color_map = {
+        "Santé": "#1f77b4",
+        "Finance": "#ff7f0e",
+        "Tous": "#2ca02c"
+    }
+
     for article in articles:
         if article.get("title", "").startswith("Erreur"):
             continue
         date_str = article.get("date") or datetime.datetime.now().isoformat()
         date = datetime.datetime.fromisoformat(date_str[:19])
-        color_map = {
-            "Santé": "#1f77b4",
-            "Finance": "#ff7f0e",
-            "Tous": "#2ca02c"
-        }
+        group = selected_subtopic or selected_sector
         events.append({
             "start_date": {
                 "year": date.year,
@@ -161,9 +169,11 @@ if st.button("\U0001F680 Lancer la veille stratégique"):
                 "headline": article.get("title", "Sans titre"),
                 "text": article.get("snippet", "")[:300] + "..."
             },
-            "group": selected_subtopic or selected_sector,
-            "background": color_map.get(selected_sector, "#999999")
+            "group": group,
+            "background": color_map.get(group, "#999999")
         })
+
+    events.sort(key=lambda e: (e["start_date"]["year"], e["start_date"]["month"], e["start_date"]["day"]))
     timeline({"title": {"text": {"headline": "Évolution des agents IA par thème"}}, "events": events})
 
     if summaries:
@@ -174,4 +184,21 @@ if st.button("\U0001F680 Lancer la veille stratégique"):
             file_name="rapport_veille.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         )
+
+        st.subheader("📤 Export des données")
+        df_export = pd.DataFrame([
+            {
+                "Sujet": topic,
+                "Résumé": summary.split("\n\ud83d\udcac")[-1] if "\n\ud83d\udcac" in summary else summary,
+                "Lien": summary.split("](")[-1].split(")")[0] if "](" in summary else ""
+            }
+            for topic, summary_list in summaries.items()
+            for summary in summary_list
+        ])
+
+        csv = df_export.to_csv(index=False).encode('utf-8')
+        json_data = json.dumps(df_export.to_dict(orient="records"), indent=2)
+
+        st.download_button("⬇️ Télécharger en CSV", data=csv, file_name="veille_ia.csv", mime="text/csv")
+        st.download_button("⬇️ Télécharger en JSON", data=json_data, file_name="veille_ia.json", mime="application/json")
 
