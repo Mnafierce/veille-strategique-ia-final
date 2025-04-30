@@ -2,8 +2,13 @@ import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
+import uuid
+import re
 from typing import List, Dict
+import json
+import os
+import time
 
 # Configuration des mots-clés par secteur, sujet et pays
 CONFIG = {
@@ -25,13 +30,34 @@ CONFIG = {
     }
 }
 
-# Fonction pour collecter des articles via Google News (ou autre API)
+# Fonction pour sauvegarder les résultats en cache
+def save_cache(data: List[Dict], filename: str = 'cache.json'):
+    try:
+        with open(filename, 'w') as f:
+            json.dump({'timestamp': datetime.now().isoformat(), 'data': data}, f)
+    except Exception as e:
+        st.warning(f"Erreur lors de la sauvegarde du cache : {e}")
+
+# Fonction pour charger les résultats depuis le cache
+def load_cache(filename: str = 'cache.json', max_age_hours: int = 24) -> List[Dict]:
+    try:
+        if os.path.exists(filename):
+            with open(filename, 'r') as f:
+                cache = json.load(f)
+                timestamp = datetime.fromisoformat(cache['timestamp'])
+                if datetime.now() - timestamp < timedelta(hours=max_age_hours):
+                    return cache['data']
+    except Exception as e:
+        st.warning(f"Erreur lors du chargement du cache : {e}")
+    return []
+
+# Fonction pour collecter des articles via Google News
 def fetch_articles(query: str, max_results: int = 5) -> List[Dict]:
     articles = []
     try:
-        # Exemple avec Google News (remplacer par une API réelle)
         url = f"https://news.google.com/search?q={query}&hl=en-US&gl=US&ceid=US:en"
-        response = requests.get(url)
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/91.0.4472.124'}
+        response = requests.get(url, headers=headers)
         soup = BeautifulSoup(response.text, 'html.parser')
         for item in soup.find_all('article')[:max_results]:
             title = item.find('h3')
@@ -41,30 +67,23 @@ def fetch_articles(query: str, max_results: int = 5) -> List[Dict]:
                     "title": title.text,
                     "url": f"https://news.google.com{link}",
                     "source": "Google News",
-                    "date": datetime.now().strftime("%Y-%m-%d")
+                    "date": datetime.now().strftime("%Y-%m-%d"),
+                    "abstract": "N/A"
                 })
+        time.sleep(1)  # Pause pour éviter de surcharger
     except Exception as e:
         st.error(f"Erreur lors de la collecte des articles : {e}")
     return articles
 
-# Fonction pour collecter des études via Semantic Scholar
-from bs4 import BeautifulSoup
-import requests
-from typing import List, Dict
-
-def fetch_studies(query: str, max_results: int = 3) -> List[Dict]:
+# Fonction pour scraper Semantic Scholar
+def fetch_studies_semantic_scholar(query: str, max_results: int = 3) -> List[Dict]:
     studies = []
     try:
-        # Formatter la requête pour l'URL de recherche
         query = query.replace(' ', '+')
         url = f"https://www.semanticscholar.org/search?q={query}&sort=relevance"
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/91.0.4472.124'}
         response = requests.get(url, headers=headers)
-        response.raise_for_status()  # Vérifier si la requête a réussi
-
-        # Parser le HTML
+        response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
         results = soup.find_all('div', class_='cl-paper-row')[:max_results]
 
@@ -77,29 +96,95 @@ def fetch_studies(query: str, max_results: int = 3) -> List[Dict]:
             url = f"https://www.semanticscholar.org{link_tag['href']}" if link_tag else '#'
             date = date_tag.text.strip() if date_tag else 'N/A'
 
+            # Essayer d'extraire l'abstract
+            abstract = 'N/A'
+            if url != '#':
+                try:
+                    paper_response = requests.get(url, headers=headers)
+                    paper_soup = BeautifulSoup(paper_response.text, 'html.parser')
+                    abstract_tag = paper_soup.find('div', class_='cl-paper-abstract')
+                    abstract = abstract_tag.text.strip() if abstract_tag else 'N/A'
+                    time.sleep(1)  # Pause pour éviter de surcharger
+                except:
+                    pass
+
             studies.append({
                 'title': title,
                 'url': url,
                 'source': 'Semantic Scholar',
-                'date': date
+                'date': date,
+                'abstract': abstract
             })
-
     except Exception as e:
         st.error(f"Erreur lors du scraping de Semantic Scholar : {e}")
     return studies
 
-# Fonction pour générer un résumé exécutif (simulé, à remplacer par Grok ou autre IA)
+# Fonction pour scraper Google Scholar (backup)
+def fetch_studies_google_scholar(query: str, max_results: int = 3) -> List[Dict]:
+    studies = []
+    try:
+        query = query.replace(' ', '+')
+        url = f"https://scholar.google.com/scholar?q={query}"
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/91.0.4472.124'}
+        response = requests.get(url, headers=headers)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        results = soup.find_all('div', class_='gs_r gs_or gs_scl')[:max_results]
+
+        for result in results:
+            title_tag = result.find('h3', class_='gs_rt')
+            link_tag = title_tag.find('a') if title_tag else None
+            date_tag = result.find('div', class_='gs_a')
+
+            title = title_tag.text.strip() if title_tag else 'N/A'
+            url = link_tag['href'] if link_tag else '#'
+            date = date_tag.text.strip() if date_tag else 'N/A'
+            abstract = 'N/A'  # Google Scholar ne fournit pas d'abstract directement
+
+            studies.append({
+                'title': title,
+                'url': url,
+                'source': 'Google Scholar',
+                'date': date,
+                'abstract': abstract
+            })
+        time.sleep(1)  # Pause pour éviter de surcharger
+    except Exception as e:
+        st.error(f"Erreur lors du scraping de Google Scholar : {e}")
+    return studies
+
+# Fonction principale pour collecter les études
+def fetch_studies(query: str, max_results: int = 3) -> List[Dict]:
+    # Vérifier le cache
+    cache_key = f"studies_{query}_{max_results}"
+    cached_results = load_cache(f"{cache_key}.json")
+    if cached_results:
+        return cached_results
+
+    # Essayer Semantic Scholar
+    studies = fetch_studies_semantic_scholar(query, max_results)
+    if not studies:
+        st.warning("Échec du scraping de Semantic Scholar. Passage à Google Scholar...")
+        studies = fetch_studies_google_scholar(query, max_results)
+
+    # Sauvegarder dans le cache
+    if studies:
+        save_cache(studies, f"{cache_key}.json")
+    return studies
+
+# Fonction pour générer un résumé exécutif
 def generate_executive_summary(content: Dict, sector: str, subject: str, country: str) -> str:
-    return f"""
+    abstract = content.get('abstract', 'N/A')
+    summary = f"""
     **Résumé exécutif** pour "{content['title']}" ({content['source']}, {content['date']}):
     Cet article/étude explore les avancées en {subject} dans le secteur {sector} au {country}. 
-    Points clés : [Simulé - Intégrer IA pour analyse réelle].
+    Points clés : {abstract if abstract != 'N/A' else '[Simulé - Intégrer IA pour analyse réelle]'}.
     - Impact potentiel : Automatisation accrue, efficacité opérationnelle.
     - Applications : [À personnaliser selon contenu].
     - Pertinence pour Salesforce : Intégration possible dans les solutions CRM pour {sector}.
     """
+    return summary
 
-# Fonction pour analyser les concurrents (simulé)
+# Fonction pour analyser les concurrents
 def analyze_competitors(sector: str, subject: str) -> str:
     competitors = {
         "Santé": ["IBM (Watson Health)", "Microsoft (Azure Health)", "Google Health"],
@@ -113,7 +198,7 @@ def analyze_competitors(sector: str, subject: str) -> str:
     - Avantage Salesforce : Plateforme CRM leader, potentiel pour agents agentiques intégrés.
     """
 
-# Fonction pour générer des recommandations stratégiques pour Salesforce
+# Fonction pour générer des recommandations stratégiques
 def generate_strategic_recommendations(sector: str, subject: str, country: str) -> str:
     return f"""
     **Recommandations stratégiques pour Salesforce** ({subject}, {sector}, {country}):
@@ -152,12 +237,16 @@ if st.button("Lancer la veille"):
         if not all_content:
             st.warning("Aucun résultat trouvé. Essayez une autre combinaison.")
         else:
+            # Sauvegarder tous les résultats dans le cache
+            save_cache(all_content, 'all_results.json')
+
             # Affichage des résultats
             st.subheader("Résultats de la veille")
             for item in all_content:
                 with st.expander(f"{item['title']} ({item['source']})"):
                     st.write(f"**URL** : {item['url']}")
                     st.write(f"**Date** : {item['date']}")
+                    st.write(f"**Abstract** : {item['abstract']}")
                     st.markdown(generate_executive_summary(item, sector, subject, country))
 
             # Analyse des concurrents
@@ -182,6 +271,7 @@ if st.button("Exporter les résultats"):
         "url": [],
         "source": [],
         "date": [],
+        "abstract": [],
         "summary": []
     }
     for item in all_content:
@@ -189,6 +279,7 @@ if st.button("Exporter les résultats"):
         results["url"].append(item["url"])
         results["source"].append(item["source"])
         results["date"].append(item["date"])
+        results["abstract"].append(item["abstract"])
         results["summary"].append(generate_executive_summary(item, sector, subject, country))
     
     df = pd.DataFrame(results)
