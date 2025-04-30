@@ -2,8 +2,6 @@ import streamlit as st
 import datetime
 import asyncio
 import time
-import re
-from collections import defaultdict
 from fetch_news import run_news_crawl
 from fetch_sources import (
     search_with_openai, search_arxiv,
@@ -20,30 +18,6 @@ from report_builder import build_report_view, generate_docx
 from streamlit_timeline import timeline
 from async_sources import run_async_sources
 
-def display_swot_table(swot_text):
-    forces = re.findall(r"(?i)forces?:\s*(.*)", swot_text)
-    faiblesses = re.findall(r"(?i)faiblesses?:\s*(.*)", swot_text)
-    opportunites = re.findall(r"(?i)opportunités?:\s*(.*)", swot_text)
-    menaces = re.findall(r"(?i)menaces?:\s*(.*)", swot_text)
-
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.markdown("### 🟢 Forces")
-        for f in forces:
-            st.markdown(f"- {f}" if f else "- Non détecté")
-    with col2:
-        st.markdown("### 🔴 Faiblesses")
-        for w in faiblesses:
-            st.markdown(f"- {w}" if w else "- Non détecté")
-    with col3:
-        st.markdown("### 🔵 Opportunités")
-        for o in opportunites:
-            st.markdown(f"- {o}" if o else "- Non détecté")
-    with col4:
-        st.markdown("### 🟠 Menaces")
-        for t in menaces:
-            st.markdown(f"- {t}" if t else "- Non détecté")
-
 st.set_page_config(page_title="Veille stratégique IA", layout="wide")
 st.title("\U0001F4CA Tableau de bord IA – Stratégie & Innovation")
 
@@ -52,7 +26,7 @@ Ce tableau de bord automatise la veille stratégique sur les agents IA dans les 
 ainsi que les innovations émergentes.
 """)
 
-st.sidebar.header("🍿️ Domaines ciblés")
+st.sidebar.header("\U0001F37F️ Domaines ciblés")
 selected_sector = st.sidebar.radio("Choisis un secteur :", ["Santé", "Finance", "Tous"])
 
 subtopics = {
@@ -63,18 +37,18 @@ subtopics = {
 selected_subtopic = st.sidebar.selectbox("Sous-thème :", subtopics[selected_sector])
 
 st.sidebar.header("⚙️ Modules à activer")
-use_google_news = st.sidebar.checkbox("🌐 Google News", value=True)
-use_cse = st.sidebar.checkbox("🛁 Google CSE/TechCrunch/VB", value=True)
-use_perplexity = st.sidebar.checkbox("🧠 Perplexity AI", value=True)
-use_openai = st.sidebar.checkbox("💬 OpenAI", value=True)
-use_arxiv = st.sidebar.checkbox("📚 ArXiv (scientifique)", value=False)
-use_consensus = st.sidebar.checkbox("🔬 Consensus", value=False)
+use_google_news = st.sidebar.checkbox("\U0001F310 Google News", value=True)
+use_cse = st.sidebar.checkbox("\U0001F9C1 Google CSE/TechCrunch/VB", value=True)
+use_perplexity = st.sidebar.checkbox("\U0001F9E0 Perplexity AI", value=True)
+use_openai = st.sidebar.checkbox("\U0001F4AC OpenAI", value=True)
+use_arxiv = st.sidebar.checkbox("\U0001F4DA ArXiv (scientifique)", value=False)
+use_consensus = st.sidebar.checkbox("\U0001F52C Consensus", value=False)
 
 st.sidebar.header("⚡ Mode IA")
 fast_mode = st.sidebar.checkbox("Mode rapide (résumés limités)", value=True)
-salesforce_mode = st.sidebar.checkbox("💼 Mode Salesforce (recommandations commerciales)", value=False)
-show_ideas = st.sidebar.checkbox("💡 Afficher 5 idées innovantes de la semaine", value=True)
-show_swot = st.sidebar.checkbox("🧮 Générer une analyse SWOT", value=True)
+salesforce_mode = st.sidebar.checkbox("\U0001F4BC Mode Salesforce (recommandations commerciales)", value=False)
+show_ideas = st.sidebar.checkbox("\U0001F4A1 Afficher 5 idées innovantes de la semaine", value=True)
+show_swot = st.sidebar.checkbox("\U0001F9EE Générer une analyse SWOT", value=True)
 
 sector_keywords = {
     "Santé": ["Hippocratic AI", "AI in Healthcare", "One AI Health", "Amelia AI", "IA médicale"],
@@ -86,16 +60,14 @@ keywords = sector_keywords[selected_sector] + INNOVATION_KEYWORDS + always_use_k
 if selected_subtopic:
     keywords.append(selected_subtopic)
 
-if st.button("🚀 Lancer la veille stratégique"):
+if st.button("\U0001F680 Lancer la veille stratégique"):
     start_time = time.time()
     progress = st.progress(0)
     articles = []
 
     if fast_mode:
         st.info("Mode rapide activé : les requêtes sont parallélisées.")
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        articles = loop.run_until_complete(run_async_sources(
+        articles = asyncio.run(run_async_sources(
             keywords,
             use_cse=use_cse,
             use_perplexity=use_perplexity,
@@ -129,21 +101,15 @@ if st.button("🚀 Lancer la veille stratégique"):
     st.success(f"{len(articles)} articles trouvés en {duration:.2f} secondes.")
     st.divider()
 
-    with st.spinner("🧠 Résumés générés par IA..."):
+    with st.spinner("\U0001F9E0 Résumés générés par IA..."):
         summaries = summarize_articles(articles, limit=5 if fast_mode else None)
 
-    success_count = 0
-    fail_count = 0
-    for topic_summary in summaries.values():
-        if "Résumé indisponible" in topic_summary:
-            fail_count += 1
-        else:
-            success_count += 1
-
-    st.info(f"🧠 Résumés générés : {success_count} | ❌ Résumés échoués : {fail_count}")
+    total = len(articles)
+    success = sum(len(s) for s in summaries.values())
+    st.markdown(f"🧠 Résumés générés : {success} | ❌ Résumés échoués : {total - success}")
 
     st.subheader("📌 Résumé exécutif – dernières 24h")
-    all_snippets = "\n".join([a['snippet'] for a in articles])
+    all_snippets = "\n".join([a['snippet'] for a in articles if a.get('snippet')])
     summary_24h = summarize_text_block(all_snippets)
     st.markdown(summary_24h)
 
@@ -151,27 +117,20 @@ if st.button("🚀 Lancer la veille stratégique"):
         st.subheader("🧠 Analyse SWOT automatique")
         swot_text = generate_swot_analysis(all_snippets)
         st.markdown(swot_text)
-        display_swot_table(swot_text)
 
     st.subheader("📚 Résumés par sujet")
     col1, col2 = st.columns(2)
-    for i, (topic, summary) in enumerate(summaries.items()):
+    for i, (topic, summary_list) in enumerate(summaries.items()):
         with (col1 if i % 2 == 0 else col2):
-            st.markdown(f"### {topic}")
-            score = compute_strategic_score(summary, keywords)
-            if score >= 70:
-                st.success(f"Pertinence stratégique : {score}% ✅")
-            elif score >= 40:
-                st.warning(f"Pertinence stratégique : {score}% 🟠")
-            else:
-                st.error(f"Pertinence stratégique : {score}% 🔴")
-            st.markdown(summary)
+            st.markdown(f"### 🧠 {topic}")
+            for s in summary_list:
+                st.markdown(s)
 
     with st.expander("📊 Rapport complet structuré"):
         build_report_view(summaries, articles)
 
     if show_ideas:
-        st.subheader("💡 5 idées innovantes générées par IA")
+        st.subheader("\U0001F4A1 5 idées innovantes générées par IA")
         for idea in generate_innovation_ideas(all_snippets):
             st.markdown(f"- {idea}")
 
@@ -180,21 +139,13 @@ if st.button("🚀 Lancer la veille stratégique"):
         for reco in generate_strategic_recommendations(all_snippets, mode="salesforce"):
             st.markdown(f"✅ {reco}")
 
-    st.subheader("🕒 Timeline des sujets stratégiques")
-
-    # Nouvelle Timeline Groupée par Mois
-    articles_by_month = defaultdict(list)
+    st.subheader("\U0001F551 Timeline des sujets stratégiques")
+    events = []
     for article in articles:
+        if article.get("title", "").startswith("Erreur"):
+            continue
         date_str = article.get("date") or datetime.datetime.now().isoformat()
         date = datetime.datetime.fromisoformat(date_str[:19])
-        month_key = date.strftime("%Y-%m")
-        articles_by_month[month_key].append(article)
-
-    events = []
-    for month, month_articles in articles_by_month.items():
-        year, month_num = map(int, month.split("-"))
-        headline = f"Tendances {datetime.date(year, month_num, 1).strftime('%B %Y')}"
-        text = "\n".join(f"- {art.get('title', 'Sans titre')}" for art in month_articles)
         color_map = {
             "Santé": "#1f77b4",
             "Finance": "#ff7f0e",
@@ -202,24 +153,23 @@ if st.button("🚀 Lancer la veille stratégique"):
         }
         events.append({
             "start_date": {
-                "year": year,
-                "month": month_num,
-                "day": 1
+                "year": date.year,
+                "month": date.month,
+                "day": date.day
             },
             "text": {
-                "headline": headline,
-                "text": text[:1000]  # Limite texte affiché
+                "headline": article.get("title", "Sans titre"),
+                "text": article.get("snippet", "")[:300] + "..."
             },
             "group": selected_subtopic or selected_sector,
             "background": color_map.get(selected_sector, "#999999")
         })
-
-    timeline({"title": {"text": {"headline": "Évolution des agents IA par mois"}}, "events": events})
+    timeline({"title": {"text": {"headline": "Évolution des agents IA par thème"}}, "events": events})
 
     if summaries:
         docx_file = generate_docx(summaries, articles)
         st.download_button(
-            label="📅 Télécharger le rapport en DOCX",
+            label="\U0001F4C5 Télécharger le rapport en DOCX",
             data=docx_file,
             file_name="rapport_veille.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
