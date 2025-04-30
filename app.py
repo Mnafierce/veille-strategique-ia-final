@@ -63,7 +63,7 @@ def init_db():
         conn = sqlite3.connect('veille_cache.db')
         c = conn.cursor()
         c.execute('''CREATE TABLE IF NOT EXISTS results
-                     (id TEXT, query TEXT, timestamp TEXT, title TEXT, url TEXT, source TEXT, source_name TEXT, date TEXT, abstract TEXT, summary TEXT)''')
+                     (-tasks TEXT, query TEXT, timestamp TEXT, title TEXT, url TEXT, source TEXT, source_name TEXT, date TEXT, abstract TEXT, summary TEXT)''')
         conn.commit()
     except Exception as e:
         st.error(f"Erreur lors de l'initialisation de la base de données : {e}")
@@ -359,60 +359,132 @@ def analyze_competitors(sector: str, subject: str) -> str:
     """
 
 # Interface Streamlit
-st.set_page_config(page_title="Veille Stratégique IA pour Salesforce", layout="wide")
+st.set_page_config(
+    page_title="Veille Stratégique IA pour Salesforce",
+    layout="wide",
+    initial_sidebar_state="expanded",
+    theme={
+        "primaryColor": "#005FB8",  # Bleu Salesforce
+        "backgroundColor": "#f5f7fa",  # Fond clair
+        "secondaryBackgroundColor": "#ffffff",  # Fond des éléments secondaires
+        "textColor": "#000000",  # Texte noir pour contraste
+        "font": "sans serif"
+    }
+)
+
+# CSS personnalisé pour forcer la lisibilité
 st.markdown("""
     <style>
-    .main { 
-        background-color: #f5f7fa; 
+    /* Forcer le thème clair global */
+    .main {
+        background-color: #f5f7fa !important;
+        color: #000000 !important;
     }
-    .stButton>button { 
-        background-color: #005FB8; 
-        color: #ffffff; 
-        border-radius: 5px; 
-        font-weight: bold; 
+    .stApp {
+        background-color: #f5f7fa !important;
+        color: #000000 !important;
     }
-    .stSelectbox, .stTextInput, .stTextArea { 
-        background-color: #ffffff; 
-        border-radius: 5px; 
-        color: #000000 !important; 
-        border: 1px solid #cccccc; 
-        padding: 5px; 
+
+    /* Style général pour tous les textes */
+    h1, h2, h3, h4, h5, h6, p, div, span, label {
+        color: #000000 !important;
+        font-family: 'Salesforce Sans', Arial, sans-serif !important;
     }
-    .stSelectbox div[data-baseweb="select"] > div { 
-        color: #000000 !important; 
-        background-color: #ffffff !important; 
+
+    /* Style des titres */
+    h1 {
+        color: #003087 !important;  /* Bleu foncé Salesforce */
+        font-size: 2.5rem !important;
+        margin-bottom: 1rem !important;
     }
-    .stSelectbox div[data-baseweb="select"] > div:hover { 
-        background-color: #e6f0fa !important; 
+    h2, h3 {
+        color: #003087 !important;
+        margin-top: 1.5rem !important;
     }
-    .stExpander { 
-        background-color: #ffffff; 
-        border: 1px solid #cccccc; 
-        border-radius: 5px; 
+
+    /* Style des champs de saisie */
+    .stTextInput > div > div > input,
+    .stTextArea > div > textarea {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border: 1px solid #cccccc !important;
+        border-radius: 5px !important;
+        padding: 8px !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
     }
-    .stExpander div[role="button"] { 
-        color: #000000 !important; 
-        font-weight: bold; 
+
+    /* Style des sélecteurs */
+    .stSelectbox div[data-baseweb="select"] > div {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border: 1px solid #cccccc !important;
+        border-radius: 5px !important;
+        padding: 8px !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
     }
-    .stTabs [data-baseweb="tab"] { 
-        background-color: #ffffff; 
-        color: #000000 !important; 
-        border: 1px solid #cccccc; 
-        border-radius: 5px 5px 0 0; 
+    .stSelectbox div[data-baseweb="select"] > div:hover {
+        background-color: #e6f0fa !important;
     }
-    .stTabs [data-baseweb="tab"][aria-selected="true"] { 
-        background-color: #005FB8 !important; 
-        color: #ffffff !important; 
+
+    /* Style des boutons */
+    .stButton > button {
+        background-color: #005FB8 !important;  /* Bleu Salesforce */
+        color: #ffffff !important;
+        border-radius: 5px !important;
+        font-weight: bold !important;
+        padding: 10px 20px !important;
+        border: none !important;
+        transition: background-color 0.3s !important;
     }
-    h1, h2, h3 { 
-        color: #003087; 
-        font-family: 'Salesforce Sans', Arial, sans-serif; 
+    .stButton > button:hover {
+        background-color: #003087 !important;  /* Bleu foncé Salesforce */
     }
-    .stMarkdown { 
-        color: #000000 !important; 
+
+    /* Style des expanders */
+    .stExpander {
+        background-color: #ffffff !important;
+        border: 1px solid #cccccc !important;
+        border-radius: 5px !important;
+        margin-bottom: 1rem !important;
     }
-    .stMarkdown p { 
-        color: #000000 !important; 
+    .stExpander div[role="button"] {
+        color: #000000 !important;
+        font-weight: bold !important;
+    }
+
+    /* Style des onglets */
+    .stTabs [data-baseweb="tab-list"] {
+        background-color: #f5f7fa !important;
+    }
+    .stTabs [data-baseweb="tab"] {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border: 1px solid #cccccc !important;
+        border-radius: 5px 5px 0 0 !important;
+        padding: 10px 20px !important;
+    }
+    .stTabs [data-baseweb="tab"][aria-selected="true"] {
+        background-color: #005FB8 !important;
+        color: #ffffff !important;
+    }
+
+    /* Style des messages (erreurs, succès, etc.) */
+    .stAlert > div {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border: 1px solid #cccccc !important;
+        border-radius: 5px !important;
+    }
+
+    /* Style des séparateurs */
+    hr {
+        border-top: 1px solid #cccccc !important;
+        margin: 2rem 0 !important;
+    }
+
+    /* S'assurer que les éléments Markdown sont lisibles */
+    .stMarkdown, .stMarkdown p, .stMarkdown div {
+        color: #000000 !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -432,7 +504,7 @@ except:
 all_content = []
 if online:
     st.markdown("### Filtres de recherche")
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4 = st.columns([1, 1, 1, 1], gap="medium")
     with col1:
         st.markdown("**Secteur**")
         sector = st.selectbox("", list(CONFIG["sectors"].keys()), key="sector_select")
