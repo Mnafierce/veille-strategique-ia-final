@@ -115,19 +115,25 @@ def summarize_text(text: str, target_lang: str = 'en', max_length: int = 100) ->
         st.error(f"Erreur de résumé avec deep_translator : {e}")
         return text[:max_length] + "..." if len(text) > max_length else text
 
-# Scoring de pertinence
+# Scoring de pertinence (ajusté pour obtenir des scores plus élevés)
 def score_relevance(item: Dict, keywords: List[str]) -> float:
     text = (item['title'] + " " + item.get('abstract', '')).lower()
     weights = {
-        'finance': 2.0, 'fraude': 2.0, 'banque': 1.5, 'investissement': 1.5,
-        'cryptomonnaie': 1.5, 'marché': 1.5, 'blockchain': 1.5, 'agentique': 2.0,
-        'ia': 1.0, 'québec': 1.5
+        'finance': 3.0, 'fraude': 3.0, 'banque': 2.0, 'investissement': 2.0,
+        'cryptomonnaie': 2.0, 'marché': 2.0, 'blockchain': 2.0, 'agentique': 4.0,
+        'ia': 2.0, 'québec': 2.5
     }
-    score = sum(weights.get(keyword.lower(), 1.0) for keyword in keywords if keyword.lower() in text)
-    max_score = sum(weights.get(keyword.lower(), 1.0) for keyword in keywords)
-    return score / max_score if max_score > 0 else 0
+    # Score de base : somme des poids des mots-clés présents
+    base_score = sum(weights.get(keyword.lower(), 1.0) for keyword in keywords if keyword.lower() in text)
+    # Bonus multiplicatif si plusieurs mots-clés sont présents
+    keyword_count = sum(1 for keyword in keywords if keyword.lower() in text)
+    multiplier = 1.0 + (keyword_count * 0.2)  # Bonus de 20% par mot-clé trouvé
+    final_score = base_score * multiplier
+    # Normalisation : score maximum possible basé sur tous les mots-clés avec le multiplicateur maximum
+    max_possible_score = sum(weights.get(keyword.lower(), 1.0) for keyword in keywords) * (1.0 + (len(keywords) * 0.2))
+    return final_score / max_possible_score if max_possible_score > 0 else 0
 
-# Filtrage des résultats pertinents
+# Filtrage des résultats pertinents (basé sur mots-clés principaux)
 def filter_relevant_results(items: List[Dict], keywords: List[str]) -> List[Dict]:
     filtered = []
     required_keywords = {'ia', 'finances', 'québec', 'agentique'}  # Mots-clés principaux
@@ -251,6 +257,13 @@ def fetch_doaj(query: str, max_results: int = 3) -> List[Dict]:
 
 # Scraping Semantic Scholar avec gestion des erreurs 429
 def fetch_semantic_scholar(query: str, max_results: int = 3) -> List[Dict]:
+    # Vérifier si des résultats existent déjà dans le cache
+    cached_results = load_cache(query)
+    cached_semantic_results = [item for item in cached_results if item['source'] == 'Semantic Scholar']
+    if cached_semantic_results:
+        st.info(f"Utilisation des résultats mis en cache pour Semantic Scholar (requête : {query}).")
+        return cached_semantic_results[:max_results]
+
     studies = []
     for attempt in range(3):
         try:
@@ -281,14 +294,18 @@ def fetch_semantic_scholar(query: str, max_results: int = 3) -> List[Dict]:
             break
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 429:
-                st.warning(f"Trop de requêtes à Semantic Scholar (tentative {attempt+1}/3). Veuillez attendre un moment avant de réessayer.")
-                time.sleep(5)  # Attendre 5 secondes avant de réessayer
+                st.warning(f"Trop de requêtes à Semantic Scholar (tentative {attempt+1}/3). Attente avant de réessayer...")
+                time.sleep(60)  # Attendre 60 secondes avant de réessayer
             else:
                 st.error(f"Erreur lors de l'appel à Semantic Scholar (tentative {attempt+1}/3) : {e}")
                 time.sleep(2)
+                break
         except Exception as e:
             st.error(f"Erreur lors de l'appel à Semantic Scholar (tentative {attempt+1}/3) : {e}")
             time.sleep(2)
+            break
+    if not studies and attempt == 2:  # Après 3 tentatives échouées
+        st.error("Impossible de récupérer les résultats de Semantic Scholar en raison des limites de l'API. Veuillez réessayer plus tard.")
     return studies
 
 # Scraping Google News via RSS
@@ -586,8 +603,7 @@ if online:
                     if refined_query:
                         articles_refined = fetch_google_news(refined_query)
                         studies_doaj_refined = fetch_doaj(refined_query)
-                        studies_semantic_refined = fetch_semantic_scholar(refined_query)
-                        all_content += articles_refined + studies_doaj_refined + studies_semantic_refined
+                        all_content += articles_refined + studies_doaj_refined
                     save_cache(all_content, query)
 
                 if not all_content:
@@ -609,7 +625,11 @@ if online:
                         st.subheader("Articles")
                         sort_by = st.selectbox("Trier par", ["Date", "Source", "Pertinence"], key="sort_articles")
                         sort_key = lambda x: x['date'] if sort_by == "Date" else x['source_name'] if sort_by == "Source" else -x['relevance_score']
-                        for item in sorted([x for x in all_content if x['source'] == 'Google News'], key=sort_key):
+                        # Filtrer les articles avec un score >= 90%
+                        filtered_articles = [x for x in all_content if x['source'] == 'Google News' and x['relevance_score'] >= 0.9]
+                        if not filtered_articles:
+                            st.warning("Aucun article n'atteint un score de pertinence de 90% ou plus. Essayez d'ajuster vos mots-clés ou de réduire le seuil.")
+                        for item in sorted(filtered_articles, key=sort_key):
                             with st.expander(f"{item['title']}"):
                                 st.write(f"**Source** : [{item['source_name']}]({item['url']})")
                                 st.write(f"**URL** : {item['url']}")
@@ -623,7 +643,11 @@ if online:
                         st.subheader("Études")
                         sort_by = st.selectbox("Trier par", ["Date", "Source", "Pertinence"], key="sort_studies")
                         sort_key = lambda x: x['date'] if sort_by == "Date" else x['source_name'] if sort_by == "Source" else -x['relevance_score']
-                        for item in sorted([x for x in all_content if x['source'] in ['arXiv', 'DOAJ', 'Semantic Scholar']], key=sort_key):
+                        # Filtrer les études avec un score >= 90%
+                        filtered_studies = [x for x in all_content if x['source'] in ['arXiv', 'DOAJ', 'Semantic Scholar'] and x['relevance_score'] >= 0.9]
+                        if not filtered_studies:
+                            st.warning("Aucune étude n'atteint un score de pertinence de 90% ou plus. Essayez d'ajuster vos mots-clés ou de réduire le seuil.")
+                        for item in sorted(filtered_studies, key=sort_key):
                             with st.expander(f"{item['title']}"):
                                 st.write(f"**Source** : [{item['source_name']}]({item['url']})")
                                 st.write(f"**URL** : {item['url']}")
@@ -695,7 +719,7 @@ def run_scheduled_veille():
     all_content = fetch_google_news(query) + fetch_arxiv(query) + fetch_doaj(query) + fetch_semantic_scholar(query)
     refined_query = refine_query(all_content)
     if refined_query:
-        all_content += fetch_google_news(refined_query) + fetch_doaj(refined_query) + fetch_semantic_scholar(refined_query)
+        all_content += fetch_google_news(refined_query) + fetch_doaj(refined_query)
     save_cache(all_content, query)
     st.success("Mise à jour quotidienne effectuée.")
 
