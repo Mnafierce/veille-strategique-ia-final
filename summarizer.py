@@ -1,115 +1,114 @@
-import os
-from collections import defaultdict
 import openai
+from collections import defaultdict
 
-# Nouvelle initialisation OpenAI client
-client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-def summarize_with_openai(content):
-    try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "Tu es un expert en veille technologique. Résume de manière claire et concise pour un décideur."},
-                {"role": "user", "content": content}
-            ],
-            temperature=0.4,
-            max_tokens=300
-        )
-        return response.choices[0].message.content
-    except Exception:
-        return "Résumé indisponible"
-
-def summarize_articles(articles, limit=None):
-    summaries = defaultdict(str)
-    topics = set([a["keyword"] for a in articles])
-
-    for topic in topics:
-        topic_articles = [a for a in articles if a["keyword"] == topic]
-        if limit:
-            topic_articles = topic_articles[:limit]
-
-        for article in topic_articles:
-            content = f"Titre: {article['title']}\nExtrait: {article['snippet']}\nLien: {article['link']}"
-            summary = summarize_with_openai(content)
-            summaries[topic] += f"- {summary}\n\n"
-
-    return summaries
-
-def summarize_text_block(text):
-    try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "Tu es un analyste stratégique. Résume les événements clés des dernières 24h à partir de ce texte brut."},
-                {"role": "user", "content": text}
-            ],
-            temperature=0.4,
-            max_tokens=500
-        )
-        return response.choices[0].message.content
-    except Exception:
-        return "Résumé exécutif indisponible"
-
-def generate_swot_analysis(text_block):
-    try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "Tu es un consultant stratégique. Analyse le texte et propose une grille SWOT pour l’entreprise Salesforce sur les agents agentiques IA."},
-                {"role": "user", "content": text_block}
-            ],
-            temperature=0.5,
-            max_tokens=800
-        )
-        return response.choices[0].message.content
-    except Exception:
-        return "Analyse SWOT indisponible"
-
-def compute_strategic_score(snippet, keywords):
-    return sum(1 for kw in keywords if kw.lower() in snippet.lower())
-
-always_use_keywords = [
-    "intelligence artificielle", "agents intelligents", "agentic AI", "rupture technologique",
-    "machine learning", "technologie émergente", "IA générative", "recherche en IA",
-    "automatisation intelligente", "innovation algorithmique", "GPT-4", "LLM"
-]
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 INNOVATION_KEYWORDS = [
-    "AI startup funding", "AI for operations", "enterprise automation trends",
-    "predictive analytics in business", "intelligent agents in finance",
-    "AI-powered decision-making", "AI trends in business strategy",
-    "generative AI in enterprise", "AI and customer engagement", "future of automation"
+    "GPT-4", "LLM", "IA générative", "agentic AI", "automatisation intelligente",
+    "rupture technologique", "machine learning", "AI startup funding"
 ]
 
-def generate_innovation_ideas(text_block):
+always_use_keywords = [
+    "agents intelligents", "intelligence artificielle", "AI in Finance"
+]
+
+def summarize_text_block(text):
+    if not text.strip():
+        return "Résumé exécutif indisponible"
     try:
-        response = client.chat.completions.create(
+        response = openai.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "Tu es un générateur d’idées d’innovation pour les grandes entreprises tech."},
-                {"role": "user", "content": f"À partir de ce contenu :\n{text_block}\nPropose 5 idées innovantes utilisables par Salesforce dans le domaine des agents IA autonomes."}
+                {"role": "system", "content": "Tu es un analyste stratégique. Résume ce contenu pour un décideur."},
+                {"role": "user", "content": text[:3000]}
             ],
-            temperature=0.7,
+            temperature=0.4,
             max_tokens=400
         )
-        return response.choices[0].message.content.split("\n")
-    except Exception:
-        return ["[Erreur génération idées]"]
+        return response.choices[0].message.content.strip()
+    except:
+        return "Résumé exécutif indisponible"
 
-def generate_strategic_recommendations(text_block, mode="default"):
-    prompt = f"Tu es un expert en stratégie IA. Donne 5 recommandations pour {mode} à partir du contenu suivant :\n{text_block}"
+def summarize_articles(articles, limit=None):
+    summaries = defaultdict(list)
+    for article in articles[:limit] if limit else articles:
+        text = article.get("snippet", "")
+        if not text.strip():
+            continue
+        try:
+            topic = article.get("keyword", "Autre")
+            response = openai.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "Tu es un assistant de recherche stratégique."},
+                    {"role": "user", "content": f"Voici un extrait : '{text}'. Fais un résumé de 3 lignes."}
+                ],
+                temperature=0.5,
+                max_tokens=200
+            )
+            summary = response.choices[0].message.content.strip()
+            link = article.get("link", "")
+            summaries[topic].append(f"🔗 [Voir l'article]({link})\n💬 {summary}")
+        except:
+            continue
+    return summaries
+
+def generate_swot_analysis(text):
+    if not text.strip():
+        return "Analyse SWOT indisponible"
     try:
-        response = client.chat.completions.create(
+        response = openai.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "Fournis des recommandations pratiques et stratégiques."},
-                {"role": "user", "content": prompt}
+                {"role": "system", "content": "Tu es un analyste stratégique spécialisé en SWOT."},
+                {"role": "user", "content": f"Fais une analyse SWOT basée sur ce texte : {text[:3500]}"}
+            ],
+            temperature=0.3,
+            max_tokens=500
+        )
+        return response.choices[0].message.content.strip()
+    except:
+        return "Analyse SWOT indisponible"
+
+def generate_innovation_ideas(text):
+    try:
+        if not text.strip():
+            return ["Pas d'idées générées (texte vide)."]
+        response = openai.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Tu es un stratège de l'innovation."},
+                {"role": "user", "content": f"Génère 5 idées d'application innovantes de l'IA basées sur : {text[:3500]}"}
             ],
             temperature=0.6,
+            max_tokens=300
+        )
+        return response.choices[0].message.content.strip().split("\n")
+    except:
+        return ["[Erreur génération idées]"]
+
+def generate_strategic_recommendations(text, mode="general"):
+    try:
+        prompt = f"Donne des recommandations stratégiques{' pour Salesforce' if mode=='salesforce' else ''} à partir du texte suivant : {text[:3500]}"
+        response = openai.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Tu es un consultant en stratégie IA."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.5,
             max_tokens=400
         )
-        return response.choices[0].message.content.split("\n")
-    except Exception:
+        return response.choices[0].message.content.strip().split("\n")
+    except:
         return ["[Erreur génération recommandations]"]
 
+def compute_strategic_score(text):
+    try:
+        keywords = INNOVATION_KEYWORDS + always_use_keywords
+        text_lower = text.lower()
+        hits = sum(1 for k in keywords if k.lower() in text_lower)
+        score = int((hits / len(keywords)) * 100)
+        return min(score, 100)
+    except:
+        return 0
