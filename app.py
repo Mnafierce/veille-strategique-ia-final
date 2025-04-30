@@ -63,7 +63,7 @@ def init_db():
         conn = sqlite3.connect('veille_cache.db')
         c = conn.cursor()
         c.execute('''CREATE TABLE IF NOT EXISTS results
-                     (-tasks TEXT, query TEXT, timestamp TEXT, title TEXT, url TEXT, source TEXT, source_name TEXT, date TEXT, abstract TEXT, summary TEXT)''')
+                     (id TEXT, query TEXT, timestamp TEXT, title TEXT, url TEXT, source TEXT, source_name TEXT, date TEXT, abstract TEXT, summary TEXT)''')
         conn.commit()
     except Exception as e:
         st.error(f"Erreur lors de l'initialisation de la base de données : {e}")
@@ -362,14 +362,7 @@ def analyze_competitors(sector: str, subject: str) -> str:
 st.set_page_config(
     page_title="Veille Stratégique IA pour Salesforce",
     layout="wide",
-    initial_sidebar_state="expanded",
-    theme={
-        "primaryColor": "#005FB8",  # Bleu Salesforce
-        "backgroundColor": "#f5f7fa",  # Fond clair
-        "secondaryBackgroundColor": "#ffffff",  # Fond des éléments secondaires
-        "textColor": "#000000",  # Texte noir pour contraste
-        "font": "sans serif"
-    }
+    initial_sidebar_state="expanded"
 )
 
 # CSS personnalisé pour forcer la lisibilité
