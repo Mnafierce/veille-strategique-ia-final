@@ -1,8 +1,8 @@
 import os
 import openai
+import traceback
 from collections import defaultdict
 
-# ✅ Ajout pour lire la clé depuis l'env
 openai.api_key = os.getenv("OPENAI_API_KEY") or ""
 
 INNOVATION_KEYWORDS = [
@@ -22,13 +22,15 @@ def summarize_text_block(text):
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "Tu es un analyste stratégique. Résume ce contenu pour un décideur."},
-                {"role": "user", "content": text[:3000]}
+                {"role": "user", "content": text[:1000]}
             ],
             temperature=0.4,
-            max_tokens=400
+            max_tokens=150,
+            timeout=15
         )
         return response.choices[0].message.content.strip()
     except:
+        traceback.print_exc()
         return "Résumé exécutif indisponible"
 
 def summarize_articles(articles, limit=None):
@@ -51,14 +53,16 @@ def summarize_articles(articles, limit=None):
                 model="gpt-3.5-turbo",
                 messages=[
                     {"role": "system", "content": "Tu es un assistant de recherche stratégique."},
-                    {"role": "user", "content": f"Voici un extrait : '{text}'. Fais un résumé de 3 lignes."}
+                    {"role": "user", "content": f"Voici un extrait : '{text[:1000]}'. Fais un résumé de 3 lignes."}
                 ],
                 temperature=0.5,
-                max_tokens=200
+                max_tokens=150,
+                timeout=15
             )
             summary = response.choices[0].message.content.strip()
             summaries[topic].append(f"🔗 [Voir l'article]({link})\n💬 {summary}")
         except:
+            traceback.print_exc()
             summaries[topic].append(f"🔗 [Voir l'article]({link})\nRésumé indisponible (erreur API)")
     return summaries
 
@@ -70,13 +74,15 @@ def generate_swot_analysis(text):
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "Tu es un analyste stratégique spécialisé en SWOT."},
-                {"role": "user", "content": f"Fais une analyse SWOT basée sur ce texte : {text[:3500]}"}
+                {"role": "user", "content": f"Fais une analyse SWOT basée sur ce texte : {text[:1000]}"}
             ],
             temperature=0.3,
-            max_tokens=500
+            max_tokens=300,
+            timeout=15
         )
         return response.choices[0].message.content.strip()
     except:
+        traceback.print_exc()
         return "Analyse SWOT indisponible"
 
 def generate_innovation_ideas(text):
@@ -87,20 +93,22 @@ def generate_innovation_ideas(text):
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "Tu es un stratège de l'innovation."},
-                {"role": "user", "content": f"Génère 5 idées d'application innovantes de l'IA basées sur : {text[:3500]}"}
+                {"role": "user", "content": f"Génère 5 idées d'application innovantes de l'IA basées sur : {text[:1000]}"}
             ],
             temperature=0.6,
-            max_tokens=300
+            max_tokens=300,
+            timeout=15
         )
         return response.choices[0].message.content.strip().split("\n")
     except:
+        traceback.print_exc()
         return ["[Erreur génération idées]"]
 
 def generate_strategic_recommendations(text, mode="general"):
     if not text.strip() or not openai.api_key:
         return ["[Erreur génération recommandations]"]
     try:
-        prompt = f"Donne des recommandations stratégiques{' pour Salesforce' if mode=='salesforce' else ''} à partir du texte suivant : {text[:3500]}"
+        prompt = f"Donne des recommandations stratégiques{' pour Salesforce' if mode=='salesforce' else ''} à partir du texte suivant : {text[:1000]}"
         response = openai.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
@@ -108,10 +116,12 @@ def generate_strategic_recommendations(text, mode="general"):
                 {"role": "user", "content": prompt}
             ],
             temperature=0.5,
-            max_tokens=400
+            max_tokens=300,
+            timeout=15
         )
         return response.choices[0].message.content.strip().split("\n")
     except:
+        traceback.print_exc()
         return ["[Erreur génération recommandations]"]
 
 def compute_strategic_score(text):
