@@ -80,6 +80,23 @@ def search_with_google_cse(keyword):
     except Exception as e:
         return [{"keyword": keyword, "title": "Erreur Google CSE", "link": "", "snippet": str(e)}]
 
+def search_with_perplexity(query):
+    try:
+        headers = {
+            "Authorization": f"Bearer {os.getenv('PERPLEXITY_API_KEY')}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "q": query,
+            "source": "web",
+            "autocomplete": False
+        }
+        res = requests.post("https://api.perplexity.ai/search", headers=headers, json=payload)
+        results = res.json().get("results", [])
+        return results[0]["snippet"] if results else "Pas de résultats"
+    except Exception as e:
+        return f"[Erreur Perplexity] {e}"
+
 # ----------- Recherche classique via SerpAPI ------------------
 def search_with_serpapi(keyword):
     try:
