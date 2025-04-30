@@ -61,7 +61,7 @@ def init_db():
         conn = sqlite3.connect('veille_cache.db')
         c = conn.cursor()
         c.execute('''CREATE TABLE IF NOT EXISTS results
-                     (id TEXT, query TEXT, timestamp TEXT, title TEXT, url TEXT, source TEXT, date TEXT, abstract TEXT)''')
+                     (id TEXT, query TEXT, timestamp TEXT, title TEXT, url TEXT, source TEXT, date TEXT, abstract TEXT, summary TEXT)''')
         conn.commit()
     except Exception as e:
         st.error(f"Erreur lors de l'initialisation de la base de données : {e}")
@@ -76,10 +76,10 @@ def save_cache(data: List[Dict], query: str):
         conn = sqlite3.connect('veille_cache.db')
         c = conn.cursor()
         for item in data:
-            c.execute('''INSERT INTO results (id, query, timestamp, title, url, source, date, abstract)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+            c.execute('''INSERT INTO results (id, query, timestamp, title, url, source, date, abstract, summary)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
                       (str(uuid.uuid4()), query, datetime.now().isoformat(), item['title'], item['url'],
-                       item['source'], item['date'], item.get('abstract', 'N/A')))
+                       item['source'], item['date'], item.get('abstract', 'N/A'), item.get('summary', 'N/A')))
         conn.commit()
     except Exception as e:
         st.error(f"Erreur lors de la sauvegarde du cache : {e}")
@@ -90,10 +90,10 @@ def load_cache(query: str, max_age_hours: int = 24) -> List[Dict]:
     try:
         conn = sqlite3.connect('veille_cache.db')
         c = conn.cursor()
-        c.execute('''SELECT title, url, source, date, abstract FROM results
+        c.execute('''SELECT title, url, source, date, abstract, summary FROM results
                      WHERE query = ? AND timestamp > ?''',
                   (query, (datetime.now() - timedelta(hours=max_age_hours)).isoformat()))
-        results = [{"title": r[0], "url": r[1], "source": r[2], "date": r[3], "abstract": r[4]} for r in c.fetchall()]
+        results = [{"title": r[0], "url": r[1], "source": r[2], "date": r[3], "abstract": r[4], "summary": r[5]} for r in c.fetchall()]
         return results
     except Exception as e:
         st.error(f"Erreur lors du chargement du cache : {e}")
@@ -107,7 +107,6 @@ def summarize_text(text: str, target_lang: str = 'en', max_length: int = 100) ->
         return text[:max_length] + "..." if len(text) > max_length else text
     try:
         translator = GoogleTranslator(source='auto', target=target_lang)
-        # Traduire et limiter la longueur
         translated = translator.translate(text)
         return translated[:max_length] + "..." if len(translated) > max_length else translated
     except Exception as e:
@@ -123,13 +122,18 @@ def fetch_arxiv(query: str, max_results: int = 3) -> List[Dict]:
             url = f"http://export.arxiv.org/api/query?search_query={query}&max_results={max_results}"
             response = requests.get(url, timeout=10)
             response.raise_for_status()
-            soup = BeautifulSoup(response.text, 'xml', parser='lxml')
+            # Vérifier que la réponse est XML
+            if not response.text.startswith('<?xml'):
+                raise ValueError("La réponse d'arXiv n'est pas au format XML attendu.")
+            soup = BeautifulSoup(response.text, 'lxml-xml')  # Utiliser lxml-xml explicitement
             entries = soup.find_all('entry')
+            if not entries:
+                st.warning("Aucun résultat trouvé sur arXiv pour cette requête.")
             for entry in entries:
-                title = entry.find('title').text.strip()
-                link = entry.find('id').text.strip()
-                date = entry.find('published').text.strip()[:10]
-                abstract = entry.find('summary').text.strip()
+                title = entry.find('title').text.strip() if entry.find('title') else 'N/A'
+                link = entry.find('id').text.strip() if entry.find('id') else '#'
+                date = entry.find('published').text.strip()[:10] if entry.find('published') else 'N/A'
+                abstract = entry.find('summary').text.strip() if entry.find('summary') else 'N/A'
                 summarized_abstract = summarize_text(abstract, target_lang='en')
                 studies.append({
                     'title': title,
