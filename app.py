@@ -345,47 +345,65 @@ def analyze_competitors(sector: str, subject: str) -> str:
 st.set_page_config(page_title="Veille Stratégique IA pour Salesforce", layout="wide")
 st.markdown("""
     <style>
-    .main { background-color: #f5f7fa; }
-    .stButton>button { 
-        background-color: #005FB8; 
-        color: #ffffff; 
-        border-radius: 5px; 
-        font-weight: bold; 
+    /* Fond clair, texte sombre */
+    .main {
+        background-color: #f8f9fa;
+        color: #1c1c1c;
     }
-    .stSelectbox, .stTextInput, .stTextArea { 
-        background-color: #ffffff; 
-        border-radius: 5px; 
-        color: #000000 !important; 
-        border: 1px solid #333333; 
+
+    /* Boutons */
+    .stButton > button {
+        background-color: #005fb8 !important;
+        color: white !important;
+        font-weight: bold;
+        border-radius: 5px;
+        border: none;
+        padding: 0.6em 1.2em;
+        box-shadow: 1px 1px 2px rgba(0,0,0,0.2);
     }
-    .stSelectbox div[data-baseweb="select"] > div { 
-        color: #000000 !important; 
-        background-color: #ffffff !important; 
+
+    .stButton > button:hover {
+        background-color: #003d80 !important;
     }
-    .stSelectbox div[data-baseweb="select"] > div:hover { 
-        background-color: #e6f0fa !important; 
+
+    /* Champs de formulaire */
+    .stTextInput > div > div > input,
+    .stTextArea textarea,
+    .stSelectbox div[data-baseweb="select"] > div {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border: 1px solid #444 !important;
     }
-    .stExpander { 
-        background-color: #ffffff; 
-        border: 1px solid #cccccc; 
-        border-radius: 5px; 
+
+    /* Expander amélioré */
+    .stExpander {
+        background-color: #fefefe !important;
+        border: 1px solid #cccccc;
+        border-radius: 6px;
+        padding: 0.5em;
     }
-    .stExpander div[role="button"] { 
-        color: #000000 !important; 
-        font-weight: bold; 
+
+    /* Titres */
+    h1, h2, h3 {
+        color: #003087;
+        font-family: 'Arial', sans-serif;
+        font-weight: bold;
     }
-    h1, h2, h3 { 
-        color: #003087; 
-        font-family: 'Salesforce Sans', Arial, sans-serif; 
+
+    /* Markdown texte */
+    .stMarkdown p, .stMarkdown {
+        color: #1c1c1c !important;
+        font-size: 1rem;
+        line-height: 1.6;
     }
-    .stMarkdown { 
-        color: #000000 !important; 
-    }
-    .stMarkdown p { 
-        color: #000000 !important; 
+
+    /* Progress bar */
+    .stProgress > div > div {
+        background-color: #005fb8 !important;
     }
     </style>
 """, unsafe_allow_html=True)
+
 
 st.title("Veille Stratégique IA pour Salesforce")
 st.markdown("Suivez les avancées des agents agentiques externes en santé, économie et finances, avec des recommandations stratégiques.")
