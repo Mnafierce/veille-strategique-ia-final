@@ -2,51 +2,24 @@ import os
 import requests
 import feedparser
 import google.generativeai as genai
-import openai
 
 # Chargement des clés API
 SERPAPI_KEY = os.getenv("SERPAPI_KEY")
 GOOGLE_CSE_ID = os.getenv("GOOGLE_CSE_ID")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# Initialisation des clients
-openai.api_key = OPENAI_API_KEY
-USE_GEMINI = bool(GEMINI_API_KEY)
-if USE_GEMINI:
+# Initialisation Gemini
+if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
 # ----------- Gemini (fallback ou synthèse) ------------------
 def search_with_gemini(prompt):
-    if not USE_GEMINI:
-        return "[Gemini désactivé]"
     try:
         model = genai.GenerativeModel("models/chat-bison-001")
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
         return f"[Erreur Gemini] {e}"
-
-# ----------- OpenAI synthèse ------------------
-def search_with_openai(question):
-    if not OPENAI_API_KEY:
-        return "[Erreur OpenAI] Clé API manquante"
-    try:
-        response = openai.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "Tu es un assistant de recherche stratégique."},
-                {"role": "user", "content": f"Fais une synthèse des tendances sur : {question}"}
-            ],
-            temperature=0.5,
-            max_tokens=400
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        try:
-            return search_with_gemini(f"Synthèse sur {question}")
-        except Exception as e2:
-            return f"[Erreur complète OpenAI+Gemini] {e2}"
 
 # ----------- Consensus (via SerpAPI) ------------------
 def search_consensus_via_serpapi(keyword):
@@ -97,8 +70,6 @@ def search_with_google_cse(keyword):
             "num": 5
         }
         response = requests.get(url, params=params)
-        if response.status_code == 429:
-            return [{"keyword": keyword, "title": "Erreur quota Google CSE", "link": "", "snippet": "Quota dépassé"}]
         results = response.json().get("items", [])
         return [{
             "keyword": keyword,
@@ -132,4 +103,11 @@ def search_with_serpapi(keyword):
     except Exception as e:
         return [{"keyword": keyword, "title": "Erreur SerpAPI", "link": "", "snippet": str(e)}]
 
+__all__ = [
+    "search_with_gemini",
+    "search_with_google_cse",
+    "search_with_serpapi",
+    "search_consensus_via_serpapi",
+    "search_arxiv"
+]
 
