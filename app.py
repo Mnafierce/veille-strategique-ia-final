@@ -117,22 +117,32 @@ def summarize_text(text: str, target_lang: str = 'en', max_length: int = 100) ->
 
 # Scoring de pertinence
 def score_relevance(item: Dict, keywords: List[str]) -> float:
-    text = (item['title'] + " " + item['abstract']).lower()
+    text = (item['title'] + " " + item.get('abstract', '')).lower()
     weights = {
         'finance': 2.0, 'fraude': 2.0, 'banque': 1.5, 'investissement': 1.5,
-        'crypto': 1.5, 'marché': 1.5, 'blockchain': 1.5, 'agentique': 2.0,
+        'cryptomonnaie': 1.5, 'marché': 1.5, 'blockchain': 1.5, 'agentique': 2.0,
         'ia': 1.0, 'québec': 1.5
     }
     score = sum(weights.get(keyword.lower(), 1.0) for keyword in keywords if keyword.lower() in text)
     max_score = sum(weights.get(keyword.lower(), 1.0) for keyword in keywords)
     return score / max_score if max_score > 0 else 0
 
+# Filtrage des résultats pertinents
+def filter_relevant_results(items: List[Dict], keywords: List[str]) -> List[Dict]:
+    filtered = []
+    required_keywords = {'ia', 'finances', 'québec', 'agentique'}  # Mots-clés principaux
+    for item in items:
+        text = (item['title'] + " " + item.get('abstract', '')).lower()
+        if any(keyword in text for keyword in required_keywords):
+            filtered.append(item)
+    return filtered
+
 # Raffinement des requêtes
 def refine_query(content: List[Dict]) -> str:
     if CountVectorizer is None:
         return ""
     try:
-        texts = [item['abstract'] for item in content]
+        texts = [item.get('abstract', '') for item in content]
         vectorizer = CountVectorizer(stop_words='english', max_features=5)
         X = vectorizer.fit_transform(texts)
         keywords = [kw for kw in vectorizer.get_feature_names_out() if kw not in ['co2', 'carbon', 'climate', 'capture']]
@@ -146,7 +156,7 @@ def generate_report(content: List[Dict]) -> str:
     if CountVectorizer is None or KMeans is None:
         return "Rapport indisponible : scikit-learn non installé."
     try:
-        texts = [item['abstract'] for item in content]
+        texts = [item.get('abstract', '') for item in content]
         vectorizer = CountVectorizer(stop_words='english')
         X = vectorizer.fit_transform(texts)
         kmeans = KMeans(n_clusters=3, random_state=42)
@@ -157,7 +167,7 @@ def generate_report(content: List[Dict]) -> str:
             if cluster_items:
                 report += f"**Thème {i+1}** : {', '.join([item['title'][:50] for item in cluster_items[:3]])}\n"
                 report += f"- Sources : {', '.join(set(item['source_name'] for item in cluster_items))}\n"
-                report += f"- Insight clé : {summarize_text(' '.join([item['abstract'][:200] for item in cluster_items]), max_length=150)}\n\n"
+                report += f"- Insight clé : {summarize_text(' '.join([item.get('abstract', '')[:200] for item in cluster_items]), max_length=150)}\n\n"
         return report if report else "Aucun thème identifié."
     except Exception as e:
         st.error(f"Erreur lors de la génération du rapport : {e}")
@@ -239,10 +249,10 @@ def fetch_doaj(query: str, max_results: int = 3) -> List[Dict]:
             time.sleep(2)
     return studies
 
-# Scraping Semantic Scholar
+# Scraping Semantic Scholar avec gestion des erreurs 429
 def fetch_semantic_scholar(query: str, max_results: int = 3) -> List[Dict]:
     studies = []
-    for _ in range(3):
+    for attempt in range(3):
         try:
             query = query.replace(' ', '%20')
             url = f"https://api.semanticscholar.org/graph/v1/paper/search?query={query}&limit={max_results}&fields=title,url,abstract,venue,year"
@@ -269,8 +279,15 @@ def fetch_semantic_scholar(query: str, max_results: int = 3) -> List[Dict]:
                 })
             time.sleep(1)
             break
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 429:
+                st.warning(f"Trop de requêtes à Semantic Scholar (tentative {attempt+1}/3). Veuillez attendre un moment avant de réessayer.")
+                time.sleep(5)  # Attendre 5 secondes avant de réessayer
+            else:
+                st.error(f"Erreur lors de l'appel à Semantic Scholar (tentative {attempt+1}/3) : {e}")
+                time.sleep(2)
         except Exception as e:
-            st.error(f"Erreur lors de l'appel à Semantic Scholar (tentative {_+1}/3) : {e}")
+            st.error(f"Erreur lors de l'appel à Semantic Scholar (tentative {attempt+1}/3) : {e}")
             time.sleep(2)
     return studies
 
@@ -312,8 +329,8 @@ def predict_trend(data: List[Dict], sector: str, country: str) -> str:
     if LogisticRegression is None:
         return "Prédiction indisponible : scikit-learn non installé."
     try:
-        X = np.array([len(item['abstract']) for item in data]).reshape(-1, 1)
-        y = np.array([1 if 'agentique' in item['abstract'].lower() else 0 for item in data])
+        X = np.array([len(item.get('abstract', '')) for item in data]).reshape(-1, 1)
+        y = np.array([1 if 'agentique' in item.get('abstract', '').lower() else 0 for item in data])
         if len(np.unique(y)) > 1:
             model = LogisticRegression().fit(X, y)
             score = model.predict_proba([[500]])[0][1]
@@ -324,7 +341,7 @@ def predict_trend(data: List[Dict], sector: str, country: str) -> str:
 
 # Détection des signaux faibles
 def detect_weak_signals(data: List[Dict], sector: str, country: str) -> str:
-    signals = [item['title'] for item in data if 'startup' in item['abstract'].lower() or 'emerging' in item['abstract'].lower()]
+    signals = [item['title'] for item in data if 'startup' in item.get('abstract', '').lower() or 'emerging' in item.get('abstract', '').lower()]
     return f"Signaux faibles ({sector}, {country}) : {', '.join(signals) if signals else 'Aucun signal détecté.'}"
 
 # Analyse concurrentielle
@@ -345,93 +362,60 @@ def analyze_competitors(sector: str, subject: str) -> str:
 st.set_page_config(page_title="Veille Stratégique IA pour Salesforce", layout="wide")
 st.markdown("""
     <style>
-    /* Fond clair, texte sombre */
-    .main {
-        background-color: #f8f9fa;
-        color: #1c1c1c;
+    .main { 
+        background-color: #f5f7fa; 
     }
-
-    /* Boutons */
-    .stButton > button {
-        background-color: #005fb8 !important;
-        color: white !important;
-        font-weight: bold;
-        border-radius: 5px;
-        border: none;
-        padding: 0.6em 1.2em;
-        box-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+    .stButton>button { 
+        background-color: #005FB8; 
+        color: #ffffff; 
+        border-radius: 5px; 
+        font-weight: bold; 
     }
-
-    .stButton > button:hover {
-        background-color: #003d80 !important;
+    .stSelectbox, .stTextInput, .stTextArea { 
+        background-color: #ffffff; 
+        border-radius: 5px; 
+        color: #000000 !important; 
+        border: 1px solid #cccccc; 
+        padding: 5px; 
     }
-
-    /* Champs de formulaire */
-    .stTextInput > div > div > input,
-    .stTextArea textarea,
-    .stSelectbox div[data-baseweb="select"] > div {
-        background-color: #ffffff !important;
-        color: #000000 !important;
-        border: 1px solid #444 !important;
+    .stSelectbox div[data-baseweb="select"] > div { 
+        color: #000000 !important; 
+        background-color: #ffffff !important; 
     }
-
-    /* Expander amélioré */
-    .stExpander {
-        background-color: #fefefe !important;
-        border: 1px solid #cccccc;
-        border-radius: 6px;
-        padding: 0.5em;
+    .stSelectbox div[data-baseweb="select"] > div:hover { 
+        background-color: #e6f0fa !important; 
     }
-
-    /* Titres */
-    h1, h2, h3 {
-        color: #003087;
-        font-family: 'Arial', sans-serif;
-        font-weight: bold;
+    .stExpander { 
+        background-color: #ffffff; 
+        border: 1px solid #cccccc; 
+        border-radius: 5px; 
     }
-
-    /* Markdown texte */
-    .stMarkdown p, .stMarkdown {
-        color: #1c1c1c !important;
-        font-size: 1rem;
-        line-height: 1.6;
+    .stExpander div[role="button"] { 
+        color: #000000 !important; 
+        font-weight: bold; 
     }
-
-    /* Progress bar */
-    .stProgress > div > div {
-        background-color: #005fb8 !important;
+    .stTabs [data-baseweb="tab"] { 
+        background-color: #ffffff; 
+        color: #000000 !important; 
+        border: 1px solid #cccccc; 
+        border-radius: 5px 5px 0 0; 
+    }
+    .stTabs [data-baseweb="tab"][aria-selected="true"] { 
+        background-color: #005FB8 !important; 
+        color: #ffffff !important; 
+    }
+    h1, h2, h3 { 
+        color: #003087; 
+        font-family: 'Salesforce Sans', Arial, sans-serif; 
+    }
+    .stMarkdown { 
+        color: #000000 !important; 
+    }
+    .stMarkdown p { 
+        color: #000000 !important; 
     }
     </style>
 """, unsafe_allow_html=True)
-
-# Forcer le thème clair (désactive le mode sombre)
-st.markdown("""
-    <style>
-    body {
-        background-color: #ffffff !important;
-        color: #000000 !important;
-    }
-    .stApp {
-        background-color: #ffffff !important;
-        color: #000000 !important;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-st.markdown("""
-    <style>
-    .stMarkdown p {
-        color: #111 !important;
-        font-size: 1rem;
-        font-weight: 500;
-        line-height: 1.5em;
-    }
-    label, .stSelectbox label, .stTextInput label {
-        color: #222 !important;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
 
 st.title("Veille Stratégique IA pour Salesforce")
 st.markdown("Suivez les avancées des agents agentiques externes en santé, économie et finances, avec des recommandations stratégiques.")
@@ -462,7 +446,7 @@ if online:
         st.markdown("**Profil de veille**")
         profile = st.selectbox("", ["Aucun"] + list(CONFIG["profiles"].keys()), key="profile_select")
 
-    # Filtres dynamiques pour mots-clés
+    st.markdown("---")
     st.markdown("**Mots-clés personnalisés**")
     custom_keywords = st.text_input("(séparés par des virgules)", "", key="custom_keywords_input")
     keywords = CONFIG["sectors"][sector] + CONFIG["subjects"][subject] + CONFIG["countries"][country]
@@ -471,16 +455,18 @@ if online:
     if custom_keywords:
         keywords += [k.strip() for k in custom_keywords.split(",")]
 
+    # Optimisation de la requête
+    keywords = list(dict.fromkeys(keywords))  # Supprimer les doublons
     query = f"{subject} {sector} {country} {' '.join(keywords)}"
     st.markdown(f"**Requête** : {query}")
 
-    # Barre de recherche rapide
+    st.markdown("---")
     st.markdown("**Recherche rapide**")
     quick_search = st.text_input("(remplace la requête ci-dessus)", "", key="quick_search_input")
     if quick_search:
         query = quick_search
 
-    # Intégration Deep Search
+    st.markdown("---")
     st.markdown("**Intégration Deep Search**")
     deep_search_input = st.text_area("Coller les résultats de Deep Search", "", key="deep_search_input")
     if deep_search_input:
@@ -494,19 +480,21 @@ if online:
             'summary': summarize_text(deep_search_input, target_lang='en')
         })
 
-    # Boutons d'action
+    st.markdown("---")
     st.markdown("### Actions")
     col_btn1, col_btn2 = st.columns([1, 2])
     with col_btn1:
         if st.button("Lancer la veille"):
-            with st.spinner("Collecte des données..."):
+            with st.spinner("Collecte des données en cours..."):
+                # Optimisation de la requête pour Semantic Scholar
+                semantic_query = f"{subject} {sector} {country} agentique"
                 # Vérifier le cache
                 all_content += load_cache(query)
                 if not all_content or not deep_search_input:
                     articles = fetch_google_news(query)
                     studies_arxiv = fetch_arxiv(query)
                     studies_doaj = fetch_doaj(query)
-                    studies_semantic = fetch_semantic_scholar(query)
+                    studies_semantic = fetch_semantic_scholar(semantic_query)
                     all_content += articles + studies_arxiv + studies_doaj + studies_semantic
                     # Raffiner la requête
                     refined_query = refine_query(all_content)
@@ -520,6 +508,11 @@ if online:
                 if not all_content:
                     st.warning("Aucun résultat trouvé.")
                 else:
+                    # Filtrer les résultats pertinents
+                    all_content = filter_relevant_results(all_content, keywords)
+                    if not all_content:
+                        st.warning("Aucun résultat pertinent trouvé après filtrage.")
+
                     # Appliquer le scoring de pertinence
                     for item in all_content:
                         item['relevance_score'] = score_relevance(item, keywords)
@@ -581,6 +574,10 @@ if online:
                             df_viz = pd.DataFrame([x['source'] for x in all_content], columns=['Source'])
                             fig = px.histogram(df_viz, x='Source', title='Répartition des sources')
                             st.plotly_chart(fig)
+                            # Graphique de pertinence
+                            df_scores = pd.DataFrame([(x['title'], x['relevance_score']) for x in all_content], columns=['Titre', 'Score de Pertinence'])
+                            fig_scores = px.bar(df_scores, x='Score de Pertinence', y='Titre', title='Pertinence des Résultats')
+                            st.plotly_chart(fig_scores)
                         else:
                             st.error("Visualisations indisponibles : plotly non installé.")
 
