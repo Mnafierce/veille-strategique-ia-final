@@ -2,6 +2,7 @@ import os
 import openai
 import traceback
 from collections import defaultdict
+from fetch_sources import search_with_gemini
 
 openai.api_key = os.getenv("OPENAI_API_KEY") or ""
 
@@ -25,13 +26,11 @@ def summarize_text_block(text):
                 {"role": "user", "content": text[:1000]}
             ],
             temperature=0.4,
-            max_tokens=150,
-            timeout=15
+            max_tokens=150
         )
         return response.choices[0].message.content.strip()
     except:
-        traceback.print_exc()
-        return "Résumé exécutif indisponible"
+        return search_with_gemini(f"Résumé exécutif : {text[:1000]}") or "Résumé exécutif indisponible"
 
 def summarize_articles(articles, limit=None):
     summaries = defaultdict(list)
@@ -56,80 +55,37 @@ def summarize_articles(articles, limit=None):
                     {"role": "user", "content": f"Voici un extrait : '{text[:1000]}'. Fais un résumé de 3 lignes."}
                 ],
                 temperature=0.5,
-                max_tokens=150,
-                timeout=15
+                max_tokens=150
             )
             summary = response.choices[0].message.content.strip()
             summaries[topic].append(f"🔗 [Voir l'article]({link})\n💬 {summary}")
-        except:
+        except Exception as e:
             traceback.print_exc()
-            summaries[topic].append(f"🔗 [Voir l'article]({link})\nRésumé indisponible (erreur API)")
+            try:
+                fallback = search_with_gemini(text[:1000])
+                summaries[topic].append(f"🔗 [Voir l'article]({link})\n💬 {fallback}")
+            except:
+                summaries[topic].append(f"🔗 [Voir l'article]({link})\nRésumé indisponible (erreur API)")
     return summaries
 
-def generate_swot_analysis(text):
-    if not text.strip() or not openai.api_key:
-        return "Analyse SWOT indisponible"
-    try:
-        response = openai.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "Tu es un analyste stratégique spécialisé en SWOT."},
-                {"role": "user", "content": f"Fais une analyse SWOT basée sur ce texte : {text[:1000]}"}
-            ],
-            temperature=0.3,
-            max_tokens=300,
-            timeout=15
-        )
-        return response.choices[0].message.content.strip()
-    except:
-        traceback.print_exc()
-        return "Analyse SWOT indisponible"
+# fetch_sources.py
+import os
+import requests
+import feedparser
+import google.generativeai as genai
 
-def generate_innovation_ideas(text):
-    if not text.strip() or not openai.api_key:
-        return ["[Erreur génération idées]"]
-    try:
-        response = openai.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "Tu es un stratège de l'innovation."},
-                {"role": "user", "content": f"Génère 5 idées d'application innovantes de l'IA basées sur : {text[:1000]}"}
-            ],
-            temperature=0.6,
-            max_tokens=300,
-            timeout=15
-        )
-        return response.choices[0].message.content.strip().split("\n")
-    except:
-        traceback.print_exc()
-        return ["[Erreur génération idées]"]
+SERPAPI_KEY = os.getenv("SERPAPI_KEY")
+GOOGLE_CSE_ID = os.getenv("GOOGLE_CSE_ID")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-def generate_strategic_recommendations(text, mode="general"):
-    if not text.strip() or not openai.api_key:
-        return ["[Erreur génération recommandations]"]
-    try:
-        prompt = f"Donne des recommandations stratégiques{' pour Salesforce' if mode=='salesforce' else ''} à partir du texte suivant : {text[:1000]}"
-        response = openai.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "Tu es un consultant en stratégie IA."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.5,
-            max_tokens=300,
-            timeout=15
-        )
-        return response.choices[0].message.content.strip().split("\n")
-    except:
-        traceback.print_exc()
-        return ["[Erreur génération recommandations]"]
+genai.configure(api_key=GEMINI_API_KEY)
 
-def compute_strategic_score(text):
+def search_with_gemini(prompt):
     try:
-        keywords = INNOVATION_KEYWORDS + always_use_keywords
-        text_lower = text.lower()
-        hits = sum(1 for k in keywords if k.lower() in text_lower)
-        score = int((hits / len(keywords)) * 100)
-        return min(score, 100)
-    except:
-        return 0
+        model = genai.GenerativeModel("models/chat-bison-001")
+        response = model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        return f"[Erreur Gemini] {e}"
+
