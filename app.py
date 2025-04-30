@@ -404,6 +404,34 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# Forcer le thème clair (désactive le mode sombre)
+st.markdown("""
+    <style>
+    body {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }
+    .stApp {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+st.markdown("""
+    <style>
+    .stMarkdown p {
+        color: #111 !important;
+        font-size: 1rem;
+        font-weight: 500;
+        line-height: 1.5em;
+    }
+    label, .stSelectbox label, .stTextInput label {
+        color: #222 !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 
 st.title("Veille Stratégique IA pour Salesforce")
 st.markdown("Suivez les avancées des agents agentiques externes en santé, économie et finances, avec des recommandations stratégiques.")
