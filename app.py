@@ -37,11 +37,11 @@ CONFIG = {
     "sectors": {
         "Santé": ["santé", "médical", "diagnostic", "soins", "hôpital", "patient", "télémédecine"],
         "Économie": ["économie", "croissance", "PIB", "emploi", "inflation", "commerce"],
-        "Finances": ["finance", "banque", "investissement", "fraude", "crypto", "marché", "blockchain"]
+        "Finances": ["finance", "fraude financière", "banque", "investissement", "cryptomonnaie", "marché financier", "blockchain", "fintech"]
     },
     "subjects": {
-        "Agents Agentiques": ["agentique", "IA autonome", "agent intelligent", "automatisation"],
-        "IA": ["intelligence artificielle", "machine learning", "deep learning", "LLM"],
+        "Agents Agentiques": ["agentique", "IA autonome", "agent intelligent", "automatisation IA"],
+        "IA": ["intelligence artificielle", "machine learning", "deep learning", "modèle de langage"],
         "Technologie": ["technologie", "innovation", "numérique", "cloud", "cybersécurité"]
     },
     "countries": {
@@ -118,8 +118,14 @@ def summarize_text(text: str, target_lang: str = 'en', max_length: int = 100) ->
 # Scoring de pertinence
 def score_relevance(item: Dict, keywords: List[str]) -> float:
     text = (item['title'] + " " + item['abstract']).lower()
-    score = sum(1 for keyword in keywords if keyword.lower() in text)
-    return score / len(keywords) if keywords else 0
+    weights = {
+        'finance': 2.0, 'fraude': 2.0, 'banque': 1.5, 'investissement': 1.5,
+        'crypto': 1.5, 'marché': 1.5, 'blockchain': 1.5, 'agentique': 2.0,
+        'ia': 1.0, 'québec': 1.5
+    }  # Poids pour mots-clés critiques
+    score = sum(weights.get(keyword.lower(), 1.0) for keyword in keywords if keyword.lower() in text)
+    max_score = sum(weights.get(keyword.lower(), 1.0) for keyword in keywords)
+    return score / max_score if max_score > 0 else 0
 
 # Raffinement des requêtes
 def refine_query(content: List[Dict]) -> str:
@@ -129,8 +135,8 @@ def refine_query(content: List[Dict]) -> str:
         texts = [item['abstract'] for item in content]
         vectorizer = CountVectorizer(stop_words='english', max_features=5)
         X = vectorizer.fit_transform(texts)
-        keywords = vectorizer.get_feature_names_out()
-        return ' '.join(keywords)
+        keywords = [kw for kw in vectorizer.get_feature_names_out() if kw not in ['co2', 'carbon', 'climate', 'capture']]
+        return ' '.join(keywords) if keywords else ""
     except Exception as e:
         st.error(f"Erreur lors du raffinement de la requête : {e}")
         return ""
@@ -150,10 +156,13 @@ def generate_report(content: List[Dict]) -> str:
             cluster_items = [content[j] for j in range(len(content)) if labels[j] == i]
             if cluster_items:
                 report += f"**Thème {i+1}** : {', '.join([item['title'][:50] for item in cluster_items[:3]])}\n"
+                report += f"- Sources : {', '.join(set(item['source_name'] for item in cluster_items))}\n"
+                report += f"- Insight clé : {summarize_text(' '.join([item['abstract'][:200] for item in cluster_items]), max_length=150)}\n\n"
         return report if report else "Aucun thème identifié."
     except Exception as e:
         st.error(f"Erreur lors de la génération du rapport : {e}")
         return "Rapport indisponible."
+
 
 # Scraping arXiv
 def fetch_arxiv(query: str, max_results: int = 3) -> List[Dict]:
@@ -161,7 +170,8 @@ def fetch_arxiv(query: str, max_results: int = 3) -> List[Dict]:
     for _ in range(3):
         try:
             query = query.replace(' ', '+')
-            url = f"http://export.arxiv.org/api/query?search_query={query}&max_results={max_results}"
+            categories = "cat:cs.AI+OR+cat:econ.EM+OR+cat:cs.LG"
+            url = f"http://export.arxiv.org/api/query?search_query={query}+AND+({categories})&max_results={max_results}"
             response = requests.get(url, timeout=10)
             response.raise_for_status()
             if not response.text.startswith('<?xml'):
@@ -175,6 +185,8 @@ def fetch_arxiv(query: str, max_results: int = 3) -> List[Dict]:
                 link = entry.find('id').text.strip() if entry.find('id') else '#'
                 date = entry.find('published').text.strip()[:10] if entry.find('published') else 'N/A'
                 abstract = entry.find('summary').text.strip() if entry.find('summary') else 'N/A'
+                if any(term in abstract.lower() for term in ['co2', 'carbon capture', 'climate']):
+                    continue
                 summarized_abstract = summarize_text(abstract, target_lang='en')
                 category = entry.find('category')['term'] if entry.find('category') else 'N/A'
                 studies.append({
@@ -208,6 +220,8 @@ def fetch_doaj(query: str, max_results: int = 3) -> List[Dict]:
                 url = item.get('bibjson', {}).get('link', [{}])[0].get('url', '#')
                 date = item.get('created_date', 'N/A')[:10]
                 abstract = item.get('bibjson', {}).get('abstract', 'N/A')
+                if any(term in abstract.lower() for term in ['co2', 'carbon capture', 'climate']):
+                    continue
                 summarized_abstract = summarize_text(abstract, target_lang='en')
                 journal = item.get('bibjson', {}).get('journal', {}).get('title', 'N/A')
                 studies.append({
@@ -226,6 +240,41 @@ def fetch_doaj(query: str, max_results: int = 3) -> List[Dict]:
             time.sleep(2)
     return studies
 
+# Scraping Semantic Scholar
+def fetch_semantic_scholar(query: str, max_results: int = 3) -> List[Dict]:
+    studies = []
+    for _ in range(3):
+        try:
+            query = query.replace(' ', '%20')
+            url = f"https://api.semanticscholar.org/graph/v1/paper/search?query={query}&limit={max_results}&fields=title,url,abstract,venue,year"
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            for item in data.get('data', [])[:max_results]:
+                title = item.get('title', 'N/A')
+                url = item.get('url', '#')
+                date = str(item.get('year', 'N/A'))
+                abstract = item.get('abstract', 'N/A')
+                if any(term in abstract.lower() for term in ['co2', 'carbon capture', 'climate']):
+                    continue
+                summarized_abstract = summarize_text(abstract, target_lang='en')
+                venue = item.get('venue', 'Semantic Scholar')
+                studies.append({
+                    'title': title,
+                    'url': url,
+                    'source': 'Semantic Scholar',
+                    'source_name': venue,
+                    'date': date,
+                    'abstract': abstract,
+                    'summary': summarized_abstract
+                })
+            time.sleep(1)
+            break
+        except Exception as e:
+            st.error(f"Erreur lors de l'appel à Semantic Scholar (tentative {_+1}/3) : {e}")
+            time.sleep(2)
+    return studies
+
 # Scraping Google News via RSS
 def fetch_google_news(query: str, max_results: int = 5) -> List[Dict]:
     articles = []
@@ -239,6 +288,8 @@ def fetch_google_news(query: str, max_results: int = 5) -> List[Dict]:
                 url = entry.get('link', '#')
                 date = entry.get('published', 'N/A')[:10]
                 abstract = entry.get('description', 'N/A')
+                if any(term in abstract.lower() for term in ['co2', 'carbon capture', 'climate']):
+                    continue
                 summarized_abstract = summarize_text(abstract, target_lang='en')
                 source_name = entry.get('source', {}).get('title', url.split('/')[2] if url != '#' else 'N/A')
                 articles.append({
@@ -297,8 +348,21 @@ st.markdown("""
     <style>
     .main { background-color: #f5f7fa; }
     .stButton>button { background-color: #005FB8; color: white; }
-    .stSelectbox, .stTextInput, .stTextArea { background-color: #ffffff; border-radius: 5px; }
-    h1 { color: #003087; font-family: 'Salesforce Sans', Arial, sans-serif; }
+    .stSelectbox, .stTextInput, .stTextArea { 
+        background-color: #ffffff; 
+        border-radius: 5px; 
+        color: #000000; 
+        border: 1px solid #333333; 
+    }
+    .stSelectbox div[data-baseweb="select"] > div { color: #000000; }
+    .stExpander { 
+        background-color: #ffffff; 
+        border: 1px solid #cccccc; 
+        border-radius: 5px; 
+    }
+    .stExpander div[role="button"] { color: #000000; font-weight: bold; }
+    h1, h2, h3 { color: #003087; font-family: 'Salesforce Sans', Arial, sans-serif; }
+    .stMarkdown { color: #000000; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -364,13 +428,15 @@ if online:
                 articles = fetch_google_news(query)
                 studies_arxiv = fetch_arxiv(query)
                 studies_doaj = fetch_doaj(query)
-                all_content += articles + studies_arxiv + studies_doaj
+                studies_semantic = fetch_semantic_scholar(query)
+                all_content += articles + studies_arxiv + studies_doaj + studies_semantic
                 # Raffiner la requête
                 refined_query = refine_query(all_content)
                 if refined_query:
                     articles_refined = fetch_google_news(refined_query)
                     studies_doaj_refined = fetch_doaj(refined_query)
-                    all_content += articles_refined + studies_doaj_refined
+                    studies_semantic_refined = fetch_semantic_scholar(refined_query)
+                    all_content += articles_refined + studies_doaj_refined + studies_semantic_refined
                 save_cache(all_content, query)
 
             if not all_content:
@@ -394,19 +460,21 @@ if online:
                             st.write(f"**Date** : {item['date']}")
                             st.write(f"**Abstract** : {item['abstract']}")
                             st.write(f"**Résumé** : {item['summary']} (Généré par IA via Google Translator)")
+                            st.progress(item['relevance_score'])
                             st.write(f"**Score de pertinence** : {item['relevance_score']:.2%}")
 
                 with tab2:
                     st.subheader("Études")
                     sort_by = st.selectbox("Trier par", ["Date", "Source", "Pertinence"], key="sort_studies")
                     sort_key = lambda x: x['date'] if sort_by == "Date" else x['source_name'] if sort_by == "Source" else -x['relevance_score']
-                    for item in sorted([x for x in all_content if x['source'] in ['arXiv', 'DOAJ']], key=sort_key):
+                    for item in sorted([x for x in all_content if x['source'] in ['arXiv', 'DOAJ', 'Semantic Scholar']], key=sort_key):
                         with st.expander(f"{item['title']}"):
                             st.write(f"**Source** : [{item['source_name']}]({item['url']})")
                             st.write(f"**URL** : {item['url']}")
                             st.write(f"**Date** : {item['date']}")
                             st.write(f"**Abstract** : {item['abstract']}")
                             st.write(f"**Résumé** : {item['summary']} (Généré par IA via Google Translator)")
+                            st.progress(item['relevance_score'])
                             st.write(f"**Score de pertinence** : {item['relevance_score']:.2%}")
 
                 with tab3:
@@ -464,10 +532,10 @@ if st.button("Exporter les résultats") and all_content:
 # Tâches planifiées
 def run_scheduled_veille():
     query = "Agents Agentiques Santé Québec"
-    all_content = fetch_google_news(query) + fetch_arxiv(query) + fetch_doaj(query)
+    all_content = fetch_google_news(query) + fetch_arxiv(query) + fetch_doaj(query) + fetch_semantic_scholar(query)
     refined_query = refine_query(all_content)
     if refined_query:
-        all_content += fetch_google_news(refined_query) + fetch_doaj(refined_query)
+        all_content += fetch_google_news(refined_query) + fetch_doaj(refined_query) + fetch_semantic_scholar(refined_query)
     save_cache(all_content, query)
     st.success("Mise à jour quotidienne effectuée.")
 
