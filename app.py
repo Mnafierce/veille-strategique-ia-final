@@ -13,15 +13,15 @@ import sqlite3
 try:
     from sklearn.linear_model import LogisticRegression
 except ImportError:
-    st.error("scikit-learn is not installed. Please add it to requirements.txt.")
+    st.error("scikit-learn n'est pas installé. Veuillez l'ajouter à requirements.txt.")
     LogisticRegression = None
 import numpy as np
 import plotly.express as px
 try:
-    from googletrans import Translator, LANGUAGES
+    from deep_translator import GoogleTranslator
 except ImportError:
-    st.error("googletrans is not installed. Please add it to requirements.txt.")
-    Translator = None
+    st.error("deep_translator n'est pas installé. Veuillez l'ajouter à requirements.txt.")
+    GoogleTranslator = None
 import schedule
 import threading
 
@@ -52,12 +52,16 @@ CONFIG = {
 
 # Initialisation SQLite
 def init_db():
-    conn = sqlite3.connect('veille_cache.db')
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS results
-                 (id TEXT, query TEXT, timestamp TEXT, title TEXT, url TEXT, source TEXT, date TEXT, abstract TEXT)''')
-    conn.commit()
-    conn.close()
+    try:
+        conn = sqlite3.connect('veille_cache.db')
+        c = conn.cursor()
+        c.execute('''CREATE TABLE IF NOT EXISTS results
+                     (id TEXT, query TEXT, timestamp TEXT, title TEXT, url TEXT, source TEXT, date TEXT, abstract TEXT)''')
+        conn.commit()
+    except Exception as e:
+        st.error(f"Erreur lors de l'initialisation de la base de données : {e}")
+    finally:
+        conn.close()
 
 init_db()
 
@@ -92,90 +96,98 @@ def load_cache(query: str, max_age_hours: int = 24) -> List[Dict]:
     finally:
         conn.close()
 
-# Traduction avec googletrans
+# Traduction avec deep_translator
 def translate_text(text: str, target_lang: str = 'en') -> str:
-    if Translator is None:
+    if GoogleTranslator is None:
         return text
     try:
-        translator = Translator()
-        result = translator.translate(text, dest=target_lang)
-        return result.text
+        translator = GoogleTranslator(source='auto', target=target_lang)
+        return translator.translate(text)
     except Exception as e:
-        st.error(f"Erreur de traduction avec googletrans : {e}")
+        st.error(f"Erreur de traduction avec deep_translator : {e}")
         return text
 
 # Scraping arXiv
 def fetch_arxiv(query: str, max_results: int = 3) -> List[Dict]:
     studies = []
-    try:
-        query = query.replace(' ', '+')
-        url = f"http://export.arxiv.org/api/query?search_query={query}&max_results={max_results}"
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, 'xml')
-        entries = soup.find_all('entry')
-        for entry in entries:
-            title = entry.find('title').text.strip()
-            link = entry.find('id').text.strip()
-            date = entry.find('published').text.strip()[:10]
-            abstract = translate_text(entry.find('summary').text.strip(), target_lang='en')
-            studies.append({
-                'title': title,
-                'url': link,
-                'source': 'arXiv',
-                'date': date,
-                'abstract': abstract
-            })
-        time.sleep(1)
-    except Exception as e:
-        st.error(f"Erreur lors du scraping d'arXiv : {e}")
+    for _ in range(3):  # Retry jusqu'à 3 fois
+        try:
+            query = query.replace(' ', '+')
+            url = f"http://export.arxiv.org/api/query?search_query={query}&max_results={max_results}"
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, 'xml')
+            entries = soup.find_all('entry')
+            for entry in entries:
+                title = entry.find('title').text.strip()
+                link = entry.find('id').text.strip()
+                date = entry.find('published').text.strip()[:10]
+                abstract = translate_text(entry.find('summary').text.strip(), target_lang='en')
+                studies.append({
+                    'title': title,
+                    'url': link,
+                    'source': 'arXiv',
+                    'date': date,
+                    'abstract': abstract
+                })
+            time.sleep(1)
+            break
+        except Exception as e:
+            st.error(f"Erreur lors du scraping d'arXiv (tentative {_+1}/3) : {e}")
+            time.sleep(2)
     return studies
 
 # CORE API
 def fetch_core(query: str, max_results: int = 3) -> List[Dict]:
     studies = []
-    try:
-        url = f"https://api.core.ac.uk/v3/search/works?q={query}&limit={max_results}"
-        headers = {"Authorization": "Bearer YOUR_CORE_API_KEY"}  # Remplacer par votre clé
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
-        data = response.json()
-        for item in data.get('results', []):
-            title = item.get('title', 'N/A')
-            url = item.get('downloadUrl', '#')
-            date = item.get('publishedDate', 'N/A')[:10]
-            abstract = translate_text(item.get('abstract', 'N/A'), target_lang='en')
-            studies.append({
-                'title': title,
-                'url': url,
-                'source': 'CORE',
-                'date': date,
-                'abstract': abstract
-            })
-        time.sleep(1)
-    except Exception as e:
-        st.error(f"Erreur lors de l'appel à CORE API : {e}")
+    for _ in range(3):
+        try:
+            url = f"https://api.core.ac.uk/v3/search/works?q={query}&limit={max_results}"
+            headers = {"Authorization": "Bearer YOUR_CORE_API_KEY"}  # Remplacer par votre clé
+            response = requests.get(url, headers=headers, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            for item in data.get('results', []):
+                title = item.get('title', 'N/A')
+                url = item.get('downloadUrl', '#')
+                date = item.get('publishedDate', 'N/A')[:10]
+                abstract = translate_text(item.get('abstract', 'N/A'), target_lang='en')
+                studies.append({
+                    'title': title,
+                    'url': url,
+                    'source': 'CORE',
+                    'date': date,
+                    'abstract': abstract
+                })
+            time.sleep(1)
+            break
+        except Exception as e:
+            st.error(f"Erreur lors de l'appel à CORE API (tentative {_+1}/3) : {e}")
+            time.sleep(2)
     return studies
 
 # NewsAPI (simulant Sindup/Meltwater)
 def fetch_news(query: str, max_results: int = 5) -> List[Dict]:
     articles = []
-    try:
-        url = f"https://newsapi.org/v2/everything?q={query}&apiKey=YOUR_NEWSAPI_KEY"  # Remplacer par votre clé
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-        data = response.json()
-        for article in data.get('articles', [])[:max_results]:
-            articles.append({
-                'title': article.get('title', 'N/A'),
-                'url': article.get('url', '#'),
-                'source': article.get('source', {}).get('name', 'NewsAPI'),
-                'date': article.get('publishedAt', 'N/A')[:10],
-                'abstract': translate_text(article.get('description', 'N/A'), target_lang='en')
-            })
-        time.sleep(1)
-    except Exception as e:
-        st.error(f"Erreur lors de la collecte des actualités : {e}")
+    for _ in range(3):
+        try:
+            url = f"https://newsapi.org/v2/everything?q={query}&apiKey=YOUR_NEWSAPI_KEY"  # Remplacer par votre clé
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            for article in data.get('articles', [])[:max_results]:
+                articles.append({
+                    'title': article.get('title', 'N/A'),
+                    'url': article.get('url', '#'),
+                    'source': article.get('source', {}).get('name', 'NewsAPI'),
+                    'date': article.get('publishedAt', 'N/A')[:10],
+                    'abstract': translate_text(article.get('description', 'N/A'), target_lang='en')
+                })
+            time.sleep(1)
+            break
+        except Exception as e:
+            st.error(f"Erreur lors de la collecte des actualités (tentative {_+1}/3) : {e}")
+            time.sleep(2)
     return articles
 
 # Simulation X posts
@@ -262,6 +274,7 @@ except:
     st.warning("Mode hors-ligne : Affichage des résultats mis en cache.")
 
 # Sélection des filtres
+all_content = []
 if online:
     col1, col2, col3, col4 = st.columns(4)
     with col1:
@@ -359,7 +372,7 @@ if online:
                     st.success("Nouveaux résultats détectés !")
 
 # Exportation des résultats
-if st.button("Exporter les résultats"):
+if st.button("Exporter les résultats") and all_content:
     results = {
         "title": [], "url": [], "source": [], "date": [], "abstract": [], "summary": []
     }
