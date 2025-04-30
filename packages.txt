@@ -1,0 +1,4 @@
+build-essential
+libatlas-base-dev
+gfortran
+python3-dev
