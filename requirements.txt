@@ -2,7 +2,7 @@ streamlit==1.31.1
 requests==2.31.0
 beautifulsoup4==4.12.3
 pandas==2.2.0
-scikit-learn==1.5.2  # Compatible avec Python 3.12
+scikit-learn==1.5.2  # Mise à jour vers une version compatible
 plotly==5.20.0
-deep_translator==1.11.1  # Alternative stable à googletrans
+deep_translator==1.11.1  # Remplacement de googletrans
 schedule==1.2.1
