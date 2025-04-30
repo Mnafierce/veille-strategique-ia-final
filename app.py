@@ -6,11 +6,18 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 from sklearn.linear_model import LogisticRegression
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.cluster import KMeans
 from googletrans import Translator, LANGUAGES
 import requests
 from tenacity import retry, stop_after_attempt, wait_exponential
 import schedule
 import threading
+import uuid
+from datetime import datetime, timedelta
+from bs4 import BeautifulSoup
+from typing import List, Dict
+
 try:
     from sklearn.linear_model import LogisticRegression
     from sklearn.feature_extraction.text import CountVectorizer
@@ -18,17 +25,20 @@ try:
 except ImportError:
     st.error("scikit-learn n'est pas installé. Veuillez ajouter 'scikit-learn==1.5.2' à requirements.txt.")
     LogisticRegression = CountVectorizer = KMeans = None
+
 import numpy as np
 try:
     import plotly.express as px
 except ImportError:
     st.error("plotly n'est pas installé. Veuillez ajouter 'plotly==5.20.0' à requirements.txt.")
     px = None
+
 try:
     from deep_translator import GoogleTranslator
 except ImportError:
     st.error("deep_translator n'est pas installé. Veuillez ajouter 'deep_translator==1.11.1' à requirements.txt.")
     GoogleTranslator = None
+
 import feedparser
 
 # Configuration des mots-clés et profils de veille
@@ -57,62 +67,159 @@ def fetch_semantic_scholar(query):
     return response.json()
 
 # Interface Streamlit
+st.set_page_config(
+    page_title="Veille Stratégique IA pour Salesforce",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# CSS personnalisé pour forcer la lisibilité
+st.markdown("""
+    <style>
+    /* Forcer le thème clair global */
+    .main {
+        background-color: #f5f7fa !important;
+        color: #000000 !important;
+    }
+    .stApp {
+        background-color: #f5f7fa !important;
+        color: #000000 !important;
+    }
+
+    /* Style général pour tous les textes */
+    h1, h2, h3, h4, h5, h6, p, div, span, label {
+        color: #000000 !important;
+        font-family: 'Salesforce Sans', Arial, sans-serif !important;
+    }
+
+    /* Style des titres */
+    h1 {
+        color: #003087 !important;  /* Bleu foncé Salesforce */
+        font-size: 2.5rem !important;
+        margin-bottom: 1rem !important;
+    }
+    h2, h3 {
+        color: #003087 !important;
+        margin-top: 1.5rem !important;
+    }
+
+    /* Style des champs de saisie */
+    .stTextInput > div > div > input,
+    .stTextArea > div > textarea {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border: 1px solid #cccccc !important;
+        border-radius: 5px !important;
+        padding: 8px !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+    }
+
+    /* Style des sélecteurs (champ principal) */
+    .stSelectbox div[data-baseweb="select"] > div {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border: 1px solid #cccccc !important;
+        border-radius: 5px !important;
+        padding: 8px !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+    }
+    .stSelectbox div[data-baseweb="select"] > div:hover {
+        background-color: #e6f0fa !important;
+    }
+
+    /* Style des options dans la liste déroulante */
+    div[data-baseweb="popover"] div[data-baseweb="menu"],
+    div[data-baseweb="popover"] ul {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border: 1px solid #cccccc !important;
+        border-radius: 5px !important;
+    }
+    div[data-baseweb="popover"] div[data-baseweb="menu"] div,
+    div[data-baseweb="popover"] ul li {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        padding: 8px !important;
+    }
+    div[data-baseweb="popover"] div[data-baseweb="menu"] div:hover,
+    div[data-baseweb="popover"] ul li:hover {
+        background-color: #e6f0fa !important;
+        color: #000000 !important;
+    }
+
+    /* Style des boutons */
+    .stButton > button {
+        background-color: #005FB8 !important;  /* Bleu Salesforce */
+        color: #ffffff !important;
+        border-radius: 5px !important;
+        font-weight: bold !important;
+        padding: 10px 20px !important;
+        border: none !important;
+        transition: background-color 0.3s !important;
+    }
+    .stButton > button:hover {
+        background-color: #003087 !important;  /* Bleu foncé Salesforce */
+    }
+
+    /* Style des expanders */
+    .stExpander {
+        background-color: #ffffff !important;
+        border: 1px solid #cccccc !important;
+        border-radius: 5px !important;
+        margin-bottom: 1rem !important;
+    }
+    .stExpander div[role="button"] {
+        color: #000000 !important;
+        font-weight: bold !important;
+    }
+
+    /* Style des onglets */
+    .stTabs [data-baseweb="tab-list"] {
+        background-color: #f5f7fa !important;
+    }
+    .stTabs [data-baseweb="tab"] {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border: 1px solid #cccccc !important;
+        border-radius: 5px 5px 0 0 !important;
+        padding: 10px 20px !important;
+    }
+    .stTabs [data-baseweb="tab"][aria-selected="true"] {
+        background-color: #005FB8 !important;
+        color: #ffffff !important;
+    }
+
+    /* Style des messages (erreurs, succès, etc.) */
+    .stAlert > div {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border: 1px solid #cccccc !important;
+        border-radius: 5px !important;
+    }
+
+    /* Style des séparateurs */
+    hr {
+        border-top: 1px solid #cccccc !important;
+        margin: 2rem 0 !important;
+    }
+
+    /* S'assurer que les éléments Markdown sont lisibles */
+    .stMarkdown, .stMarkdown p, .stMarkdown div {
+        color: #000000 !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 st.title("Veille Stratégique IA pour Salesforce")
+st.markdown("Suivez les avancées des agents agentiques externes en santé, économie et finances, avec des recommandations stratégiques.")
 
-# Filtres de recherche
-st.header("Filtres de Recherche")
-sector = st.selectbox("Secteur", options=list(CONFIG["sectors"].keys()), label="Sélectionner un secteur")
-subject = st.selectbox("Sujet", options=list(CONFIG["subjects"].keys()), label="Sélectionner un sujet")
-country = st.selectbox("Pays", options=list(CONFIG["countries"].keys()), label="Sélectionner un pays")
-profile = st.selectbox("Profil de Veille", options=list(CONFIG["profiles"].keys()), label="Sélectionner un profil")
-
-# Mots-clés personnalisés
-keywords = st.text_input("Mots-clés personnalisés (séparés par des virgules)", value="IA, finances, Québec, startup", label="Entrer des mots-clés")
-keywords_list = [k.strip() for k in keywords.split(",")]
-
-# Recherche rapide
-search_query = st.text_input("Recherche rapide", value="IA finances Québec OR startup IA Québec", label="Entrer une requête rapide")
-
-# Intégration Deep Search
-if st.button("Lancer Deep Search"):
-    st.info("Deep Search activé. Les résultats seront affichés ci-dessous.")
-    # Placeholder pour les résultats de Deep Search
-    st.write("Résultats de Deep Search à venir...")
-
-# Articles et Études
-st.header("Articles et Études")
-if st.button("Rechercher des études"):
-    query = search_query if search_query else " ".join(keywords_list)
-    try:
-        studies = fetch_semantic_scholar(query)
-        st.write(studies)
-    except Exception as e:
-        st.error(f"Erreur lors de la recherche : {e}")
-
-# Visualisations
-st.header("Visualisations")
-# Exemple de visualisation avec Plotly
-df = pd.DataFrame({
-    "Date": ["2025-01", "2025-02", "2025-03"],
-    "Investissements IA": [1.2, 1.5, 1.8]
-})
-fig = px.line(df, x="Date", y="Investissements IA", title="Tendances des Investissements IA au Québec")
-st.plotly_chart(fig)
-
-# Planification des mises à jour
-def update_veille():
-    st.write("Mise à jour de la veille...")
-
-schedule.every().day.at("08:00").do(update_veille)
-
-# Thread pour exécuter les tâches planifiées
-def run_schedule():
-    while True:
-        schedule.run_pending()
-        time.sleep(60)
-
-if __name__ == "__main__":
-    threading.Thread(target=run_schedule, daemon=True).start()
+# Mode hors-ligne
+try:
+    requests.get("https://www.google.com", timeout=5)
+    online = True
+except:
+    online = False
+    st.warning("Mode hors-ligne : Affichage des résultats mis en cache.")
 
 # Initialisation SQLite
 def init_db():
@@ -432,178 +539,22 @@ def analyze_competitors(sector: str, subject: str) -> str:
     - Avantage Salesforce : CRM leader, agents agentiques intégrés.
     """
 
-# Interface Streamlit
-st.set_page_config(
-    page_title="Veille Stratégique IA pour Salesforce",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# CSS personnalisé pour forcer la lisibilité
-st.markdown("""
-    <style>
-    /* Forcer le thème clair global */
-    .main {
-        background-color: #f5f7fa !important;
-        color: #000000 !important;
-    }
-    .stApp {
-        background-color: #f5f7fa !important;
-        color: #000000 !important;
-    }
-
-    /* Style général pour tous les textes */
-    h1, h2, h3, h4, h5, h6, p, div, span, label {
-        color: #000000 !important;
-        font-family: 'Salesforce Sans', Arial, sans-serif !important;
-    }
-
-    /* Style des titres */
-    h1 {
-        color: #003087 !important;  /* Bleu foncé Salesforce */
-        font-size: 2.5rem !important;
-        margin-bottom: 1rem !important;
-    }
-    h2, h3 {
-        color: #003087 !important;
-        margin-top: 1.5rem !important;
-    }
-
-    /* Style des champs de saisie */
-    .stTextInput > div > div > input,
-    .stTextArea > div > textarea {
-        background-color: #ffffff !important;
-        color: #000000 !important;
-        border: 1px solid #cccccc !important;
-        border-radius: 5px !important;
-        padding: 8px !important;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
-    }
-
-    /* Style des sélecteurs (champ principal) */
-    .stSelectbox div[data-baseweb="select"] > div {
-        background-color: #ffffff !important;
-        color: #000000 !important;
-        border: 1px solid #cccccc !important;
-        border-radius: 5px !important;
-        padding: 8px !important;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
-    }
-    .stSelectbox div[data-baseweb="select"] > div:hover {
-        background-color: #e6f0fa !important;
-    }
-
-    /* Style des options dans la liste déroulante */
-    div[data-baseweb="popover"] div[data-baseweb="menu"],
-    div[data-baseweb="popover"] ul {
-        background-color: #ffffff !important;
-        color: #000000 !important;
-        border: 1px solid #cccccc !important;
-        border-radius: 5px !important;
-    }
-    div[data-baseweb="popover"] div[data-baseweb="menu"] div,
-    div[data-baseweb="popover"] ul li {
-        background-color: #ffffff !important;
-        color: #000000 !important;
-        padding: 8px !important;
-    }
-    div[data-baseweb="popover"] div[data-baseweb="menu"] div:hover,
-    div[data-baseweb="popover"] ul li:hover {
-        background-color: #e6f0fa !important;
-        color: #000000 !important;
-    }
-
-    /* Style des boutons */
-    .stButton > button {
-        background-color: #005FB8 !important;  /* Bleu Salesforce */
-        color: #ffffff !important;
-        border-radius: 5px !important;
-        font-weight: bold !important;
-        padding: 10px 20px !important;
-        border: none !important;
-        transition: background-color 0.3s !important;
-    }
-    .stButton > button:hover {
-        background-color: #003087 !important;  /* Bleu foncé Salesforce */
-    }
-
-    /* Style des expanders */
-    .stExpander {
-        background-color: #ffffff !important;
-        border: 1px solid #cccccc !important;
-        border-radius: 5px !important;
-        margin-bottom: 1rem !important;
-    }
-    .stExpander div[role="button"] {
-        color: #000000 !important;
-        font-weight: bold !important;
-    }
-
-    /* Style des onglets */
-    .stTabs [data-baseweb="tab-list"] {
-        background-color: #f5f7fa !important;
-    }
-    .stTabs [data-baseweb="tab"] {
-        background-color: #ffffff !important;
-        color: #000000 !important;
-        border: 1px solid #cccccc !important;
-        border-radius: 5px 5px 0 0 !important;
-        padding: 10px 20px !important;
-    }
-    .stTabs [data-baseweb="tab"][aria-selected="true"] {
-        background-color: #005FB8 !important;
-        color: #ffffff !important;
-    }
-
-    /* Style des messages (erreurs, succès, etc.) */
-    .stAlert > div {
-        background-color: #ffffff !important;
-        color: #000000 !important;
-        border: 1px solid #cccccc !important;
-        border-radius: 5px !important;
-    }
-
-    /* Style des séparateurs */
-    hr {
-        border-top: 1px solid #cccccc !important;
-        margin: 2rem 0 !important;
-    }
-
-    /* S'assurer que les éléments Markdown sont lisibles */
-    .stMarkdown, .stMarkdown p, .stMarkdown div {
-        color: #000000 !important;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-st.title("Veille Stratégique IA pour Salesforce")
-st.markdown("Suivez les avancées des agents agentiques externes en santé, économie et finances, avec des recommandations stratégiques.")
-
-# Mode hors-ligne
-try:
-    requests.get("https://www.google.com", timeout=5)
-    online = True
-except:
-    online = False
-    st.warning("Mode hors-ligne : Affichage des résultats mis en cache.")
-
 # Sélection des filtres
 all_content = []
 if online:
     st.markdown("### Filtres de recherche")
-    col1, col2, col3, col4 = st.columns([1, 1, 1, 1], gap="medium")
-    with col1:
-        st.markdown("**Secteur**")
-        sector = st.selectbox("", list(CONFIG["sectors"].keys()), key="sector_select")
-    with col2:
-        st.markdown("**Sujet**")
-        subject = st.selectbox("", list(CONFIG["subjects"].keys()), key="subject_select")
-    with col3:
-        st.markdown("**Pays**")
-        country = st.selectbox("", list(CONFIG["countries"].keys()), key="country_select")
-    with col4:
-        st.markdown("**Profil de veille**")
-        profile = st.selectbox("", ["Aucun"] + list(CONFIG["profiles"].keys()), key="profile_select")
+    # Simplification : Éviter les colonnes pour les selectbox
+    st.markdown("**Secteur**")
+    sector = st.selectbox("Sélectionner un secteur", list(CONFIG["sectors"].keys()), key="sector_select_unique")
+
+    st.markdown("**Sujet**")
+    subject = st.selectbox("Sélectionner un sujet", list(CONFIG["subjects"].keys()), key="subject_select_unique")
+
+    st.markdown("**Pays**")
+    country = st.selectbox("Sélectionner un pays", list(CONFIG["countries"].keys()), key="country_select_unique")
+
+    st.markdown("**Profil de veille**")
+    profile = st.selectbox("Sélectionner un profil", ["Aucun"] + list(CONFIG["profiles"].keys()), key="profile_select_unique")
 
     st.markdown("---")
     st.markdown("**Mots-clés personnalisés**")
