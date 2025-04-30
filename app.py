@@ -2,13 +2,13 @@ import streamlit as st
 import datetime
 import asyncio
 import time
+
 from fetch_news import run_news_crawl
 from fetch_sources import (
     search_with_openai, search_arxiv,
     search_consensus_via_serpapi,
-    search_with_google_cse as search_with_cse_sources
+    search_with_perplexity, search_with_google_cse as search_with_cse_sources
 )
-
 from summarizer import (
     summarize_articles, summarize_text_block,
     generate_innovation_ideas, generate_strategic_recommendations,
@@ -108,8 +108,6 @@ if st.button("\U0001F680 Lancer la veille stratégique"):
     total = len(articles)
     success = sum(len(s) for s in summaries.values())
     st.markdown(f"🧠 Résumés générés : {success} | ❌ Résumés échoués : {total - success}")
-    if success == 0:
-        st.warning("⚠️ Aucun résumé n'a pu être généré. Vérifie l'état de ton API OpenAI ou active Gemini.")
 
     st.subheader("📌 Résumé exécutif – dernières 24h")
     all_snippets = "\n".join([a['snippet'] for a in articles if a.get('snippet')])
@@ -177,4 +175,3 @@ if st.button("\U0001F680 Lancer la veille stratégique"):
             file_name="rapport_veille.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         )
-
