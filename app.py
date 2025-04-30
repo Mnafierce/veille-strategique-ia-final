@@ -406,7 +406,7 @@ st.markdown("""
         box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
     }
 
-    /* Style des sélecteurs */
+    /* Style des sélecteurs (champ principal) */
     .stSelectbox div[data-baseweb="select"] > div {
         background-color: #ffffff !important;
         color: #000000 !important;
@@ -417,6 +417,26 @@ st.markdown("""
     }
     .stSelectbox div[data-baseweb="select"] > div:hover {
         background-color: #e6f0fa !important;
+    }
+
+    /* Style des options dans la liste déroulante */
+    div[data-baseweb="popover"] div[data-baseweb="menu"],
+    div[data-baseweb="popover"] ul {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border: 1px solid #cccccc !important;
+        border-radius: 5px !important;
+    }
+    div[data-baseweb="popover"] div[data-baseweb="menu"] div,
+    div[data-baseweb="popover"] ul li {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        padding: 8px !important;
+    }
+    div[data-baseweb="popover"] div[data-baseweb="menu"] div:hover,
+    div[data-baseweb="popover"] ul li:hover {
+        background-color: #e6f0fa !important;
+        color: #000000 !important;
     }
 
     /* Style des boutons */
