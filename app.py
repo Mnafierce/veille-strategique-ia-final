@@ -7,7 +7,7 @@ import json
 
 from fetch_news import run_news_crawl
 from fetch_sources import (
-    search_with_openai, search_arxiv,
+    search_with_openai, search_with_gemini, search_arxiv,
     search_consensus_via_serpapi,
     search_with_perplexity, search_with_google_cse as search_with_cse_sources
 )
@@ -91,11 +91,15 @@ if st.button("\U0001F680 Lancer la veille stratégique"):
                 if use_consensus:
                     articles.extend(search_consensus_via_serpapi(keyword))
                 if use_openai:
+                    try:
+                        summary = search_with_openai(keyword)
+                    except:
+                        summary = search_with_gemini(keyword)
                     articles.append({
                         "keyword": keyword,
-                        "title": "Résumé OpenAI",
+                        "title": "Résumé AI",
                         "link": "https://platform.openai.com/",
-                        "snippet": search_with_openai(keyword),
+                        "snippet": summary,
                         "date": datetime.datetime.now().isoformat()
                     })
             progress.progress((i + 1) / len(keywords))
