@@ -1,15 +1,16 @@
-import streamlit as st
-import requests
-from bs4 import BeautifulSoup
-import pandas as pd
-from datetime import datetime, timedelta
-import uuid
-import re
-from typing import List, Dict
-import json
 import os
 import time
 import sqlite3
+import streamlit as st
+import pandas as pd
+import numpy as np
+import plotly.express as px
+from sklearn.linear_model import LogisticRegression
+from googletrans import Translator, LANGUAGES
+import requests
+from tenacity import retry, stop_after_attempt, wait_exponential
+import schedule
+import threading
 try:
     from sklearn.linear_model import LogisticRegression
     from sklearn.feature_extraction.text import CountVectorizer
@@ -29,33 +30,89 @@ except ImportError:
     st.error("deep_translator n'est pas installé. Veuillez ajouter 'deep_translator==1.11.1' à requirements.txt.")
     GoogleTranslator = None
 import feedparser
-import schedule
-import threading
 
 # Configuration des mots-clés et profils de veille
 CONFIG = {
     "sectors": {
-        "Santé": ["santé", "médical", "diagnostic", "soins", "hôpital", "patient", "télémédecine"],
-        "Économie": ["économie", "croissance", "PIB", "emploi", "inflation", "commerce"],
-        "Finances": ["finance", "fraude financière", "banque", "investissement", "cryptomonnaie", "marché financier", "blockchain", "fintech"]
+        "Finances": ["finances", "fraude financière", "banque", "investissement", "cryptomonnaie", "marché financier", "blockchain", "fintech"],
+        "Santé": ["santé", "médical", "diagnostic", "soins", "hôpital"],
+        "Économie": ["économie", "marché", "croissance", "récession"]
     },
     "subjects": {
-        "Agents Agentiques": ["agentique", "IA autonome", "agent intelligent", "automatisation IA"],
-        "IA": ["intelligence artificielle", "machine learning", "deep learning", "modèle de langage"],
-        "Technologie": ["technologie", "innovation", "numérique", "cloud", "cybersécurité"]
+        "IA": ["intelligence artificielle", "machine learning", "deep learning", "modèle de langage", "agents agentiques"]
     },
     "countries": {
-        "Québec": ["Québec", "Montréal", "Québec City", "francophone"],
-        "Canada": ["Canada", "Toronto", "Vancouver", "Ottawa"],
-        "Europe": ["Europe", "France", "Allemagne", "Royaume-Uni", "UE"],
-        "États-Unis": ["États-Unis", "USA", "Californie", "New York"]
+        "Québec": ["Québec", "Montréal", "Québec City", "francophone"]
     },
     "profiles": {
-        "Startups IA Québec": ["startup", "IA", "Québec", "innovation"],
-        "Réglementations UE Santé": ["réglementation", "santé", "Europe", "GDPR"],
-        "Tendances Finances USA": ["finance", "IA", "États-Unis", "marché"]
+        "Startups IA Québec": ["startup IA", "innovation", "Québec"]
     }
 }
+
+# Fonction pour interroger Semantic Scholar avec retry
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
+def fetch_semantic_scholar(query):
+    response = requests.get(f"https://api.semanticscholar.org/v1/paper/search?query={query}")
+    response.raise_for_status()
+    return response.json()
+
+# Interface Streamlit
+st.title("Veille Stratégique IA pour Salesforce")
+
+# Filtres de recherche
+st.header("Filtres de Recherche")
+sector = st.selectbox("Secteur", options=list(CONFIG["sectors"].keys()), label="Sélectionner un secteur")
+subject = st.selectbox("Sujet", options=list(CONFIG["subjects"].keys()), label="Sélectionner un sujet")
+country = st.selectbox("Pays", options=list(CONFIG["countries"].keys()), label="Sélectionner un pays")
+profile = st.selectbox("Profil de Veille", options=list(CONFIG["profiles"].keys()), label="Sélectionner un profil")
+
+# Mots-clés personnalisés
+keywords = st.text_input("Mots-clés personnalisés (séparés par des virgules)", value="IA, finances, Québec, startup", label="Entrer des mots-clés")
+keywords_list = [k.strip() for k in keywords.split(",")]
+
+# Recherche rapide
+search_query = st.text_input("Recherche rapide", value="IA finances Québec OR startup IA Québec", label="Entrer une requête rapide")
+
+# Intégration Deep Search
+if st.button("Lancer Deep Search"):
+    st.info("Deep Search activé. Les résultats seront affichés ci-dessous.")
+    # Placeholder pour les résultats de Deep Search
+    st.write("Résultats de Deep Search à venir...")
+
+# Articles et Études
+st.header("Articles et Études")
+if st.button("Rechercher des études"):
+    query = search_query if search_query else " ".join(keywords_list)
+    try:
+        studies = fetch_semantic_scholar(query)
+        st.write(studies)
+    except Exception as e:
+        st.error(f"Erreur lors de la recherche : {e}")
+
+# Visualisations
+st.header("Visualisations")
+# Exemple de visualisation avec Plotly
+df = pd.DataFrame({
+    "Date": ["2025-01", "2025-02", "2025-03"],
+    "Investissements IA": [1.2, 1.5, 1.8]
+})
+fig = px.line(df, x="Date", y="Investissements IA", title="Tendances des Investissements IA au Québec")
+st.plotly_chart(fig)
+
+# Planification des mises à jour
+def update_veille():
+    st.write("Mise à jour de la veille...")
+
+schedule.every().day.at("08:00").do(update_veille)
+
+# Thread pour exécuter les tâches planifiées
+def run_schedule():
+    while True:
+        schedule.run_pending()
+        time.sleep(60)
+
+if __name__ == "__main__":
+    threading.Thread(target=run_schedule, daemon=True).start()
 
 # Initialisation SQLite
 def init_db():
