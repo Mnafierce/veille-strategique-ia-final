@@ -13,15 +13,20 @@ import sqlite3
 try:
     from sklearn.linear_model import LogisticRegression
 except ImportError:
-    st.error("scikit-learn n'est pas installé. Veuillez l'ajouter à requirements.txt.")
+    st.error("scikit-learn n'est pas installé. Veuillez ajouter 'scikit-learn==1.5.2' à requirements.txt.")
     LogisticRegression = None
 import numpy as np
-import plotly.express as px
+try:
+    import plotly.express as px
+except ImportError:
+    st.error("plotly n'est pas installé. Veuillez ajouter 'plotly==5.20.0' à requirements.txt.")
+    px = None
 try:
     from deep_translator import GoogleTranslator
 except ImportError:
-    st.error("deep_translator n'est pas installé. Veuillez l'ajouter à requirements.txt.")
+    st.error("deep_translator n'est pas installé. Veuillez ajouter 'deep_translator==1.11.1' à requirements.txt.")
     GoogleTranslator = None
+import feedparser
 import schedule
 import threading
 
@@ -96,16 +101,18 @@ def load_cache(query: str, max_age_hours: int = 24) -> List[Dict]:
     finally:
         conn.close()
 
-# Traduction avec deep_translator
-def translate_text(text: str, target_lang: str = 'en') -> str:
+# Traduction et résumé avec deep_translator
+def summarize_text(text: str, target_lang: str = 'en', max_length: int = 100) -> str:
     if GoogleTranslator is None:
-        return text
+        return text[:max_length] + "..." if len(text) > max_length else text
     try:
         translator = GoogleTranslator(source='auto', target=target_lang)
-        return translator.translate(text)
+        # Traduire et limiter la longueur
+        translated = translator.translate(text)
+        return translated[:max_length] + "..." if len(translated) > max_length else translated
     except Exception as e:
-        st.error(f"Erreur de traduction avec deep_translator : {e}")
-        return text
+        st.error(f"Erreur de résumé avec deep_translator : {e}")
+        return text[:max_length] + "..." if len(text) > max_length else text
 
 # Scraping arXiv
 def fetch_arxiv(query: str, max_results: int = 3) -> List[Dict]:
@@ -116,19 +123,21 @@ def fetch_arxiv(query: str, max_results: int = 3) -> List[Dict]:
             url = f"http://export.arxiv.org/api/query?search_query={query}&max_results={max_results}"
             response = requests.get(url, timeout=10)
             response.raise_for_status()
-            soup = BeautifulSoup(response.text, 'xml')
+            soup = BeautifulSoup(response.text, 'xml', parser='lxml')
             entries = soup.find_all('entry')
             for entry in entries:
                 title = entry.find('title').text.strip()
                 link = entry.find('id').text.strip()
                 date = entry.find('published').text.strip()[:10]
-                abstract = translate_text(entry.find('summary').text.strip(), target_lang='en')
+                abstract = entry.find('summary').text.strip()
+                summarized_abstract = summarize_text(abstract, target_lang='en')
                 studies.append({
                     'title': title,
                     'url': link,
                     'source': 'arXiv',
                     'date': date,
-                    'abstract': abstract
+                    'abstract': abstract,
+                    'summary': summarized_abstract
                 })
             time.sleep(1)
             break
@@ -137,85 +146,65 @@ def fetch_arxiv(query: str, max_results: int = 3) -> List[Dict]:
             time.sleep(2)
     return studies
 
-# CORE API
-def fetch_core(query: str, max_results: int = 3) -> List[Dict]:
+# Scraping DOAJ
+def fetch_doaj(query: str, max_results: int = 3) -> List[Dict]:
     studies = []
     for _ in range(3):
         try:
-            url = f"https://api.core.ac.uk/v3/search/works?q={query}&limit={max_results}"
-            headers = {"Authorization": "Bearer YOUR_CORE_API_KEY"}  # Remplacer par votre clé
-            response = requests.get(url, headers=headers, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-            for item in data.get('results', []):
-                title = item.get('title', 'N/A')
-                url = item.get('downloadUrl', '#')
-                date = item.get('publishedDate', 'N/A')[:10]
-                abstract = translate_text(item.get('abstract', 'N/A'), target_lang='en')
-                studies.append({
-                    'title': title,
-                    'url': url,
-                    'source': 'CORE',
-                    'date': date,
-                    'abstract': abstract
-                })
-            time.sleep(1)
-            break
-        except Exception as e:
-            st.error(f"Erreur lors de l'appel à CORE API (tentative {_+1}/3) : {e}")
-            time.sleep(2)
-    return studies
-
-# NewsAPI (simulant Sindup/Meltwater)
-def fetch_news(query: str, max_results: int = 5) -> List[Dict]:
-    articles = []
-    for _ in range(3):
-        try:
-            url = f"https://newsapi.org/v2/everything?q={query}&apiKey=YOUR_NEWSAPI_KEY"  # Remplacer par votre clé
+            query = query.replace(' ', '+')
+            url = f"https://doaj.org/api/v1/search/articles/{query}?page=1&per_page={max_results}"
             response = requests.get(url, timeout=10)
             response.raise_for_status()
             data = response.json()
-            for article in data.get('articles', [])[:max_results]:
-                articles.append({
-                    'title': article.get('title', 'N/A'),
-                    'url': article.get('url', '#'),
-                    'source': article.get('source', {}).get('name', 'NewsAPI'),
-                    'date': article.get('publishedAt', 'N/A')[:10],
-                    'abstract': translate_text(article.get('description', 'N/A'), target_lang='en')
+            for item in data.get('results', [])[:max_results]:
+                title = item.get('bibjson', {}).get('title', 'N/A')
+                url = item.get('bibjson', {}).get('link', [{}])[0].get('url', '#')
+                date = item.get('created_date', 'N/A')[:10]
+                abstract = item.get('bibjson', {}).get('abstract', 'N/A')
+                summarized_abstract = summarize_text(abstract, target_lang='en')
+                studies.append({
+                    'title': title,
+                    'url': url,
+                    'source': 'DOAJ',
+                    'date': date,
+                    'abstract': abstract,
+                    'summary': summarized_abstract
                 })
             time.sleep(1)
             break
         except Exception as e:
-            st.error(f"Erreur lors de la collecte des actualités (tentative {_+1}/3) : {e}")
+            st.error(f"Erreur lors de l'appel à DOAJ (tentative {_+1}/3) : {e}")
+            time.sleep(2)
+    return studies
+
+# Scraping Google News via RSS
+def fetch_google_news(query: str, max_results: int = 5) -> List[Dict]:
+    articles = []
+    for _ in range(3):
+        try:
+            query = query.replace(' ', '+')
+            rss_url = f"https://news.google.com/rss/search?q={query}&hl=en-US&gl=US&ceid=US:en"
+            feed = feedparser.parse(rss_url)
+            for entry in feed.entries[:max_results]:
+                title = entry.get('title', 'N/A')
+                url = entry.get('link', '#')
+                date = entry.get('published', 'N/A')[:10]
+                abstract = entry.get('description', 'N/A')
+                summarized_abstract = summarize_text(abstract, target_lang='en')
+                articles.append({
+                    'title': title,
+                    'url': url,
+                    'source': 'Google News',
+                    'date': date,
+                    'abstract': abstract,
+                    'summary': summarized_abstract
+                })
+            time.sleep(1)
+            break
+        except Exception as e:
+            st.error(f"Erreur lors de la collecte des actualités Google News (tentative {_+1}/3) : {e}")
             time.sleep(2)
     return articles
-
-# Simulation X posts
-def fetch_x_posts(query: str, max_results: int = 3) -> List[Dict]:
-    posts = []
-    try:
-        posts.append({
-            'title': f"Discussion sur {query} (simulé)",
-            'url': '#',
-            'source': 'X',
-            'date': datetime.now().strftime("%Y-%m-%d"),
-            'abstract': 'Simulation : Discussion sur X concernant les agents agentiques.'
-        })
-    except Exception as e:
-        st.error(f"Erreur lors de la collecte des posts X : {e}")
-    return posts
-
-# Analyse avec Grok (simulé)
-def generate_executive_summary(content: Dict, sector: str, subject: str, country: str) -> str:
-    abstract = content.get('abstract', 'N/A')
-    summary = f"""
-    **Résumé exécutif** pour "{content['title']}" ({content['source']}, {content['date']}):
-    Analyse IA : {abstract if abstract != 'N/A' else 'Analyse en cours via Grok API (simulé)'}.
-    - Impact : Automatisation et optimisation dans {sector}.
-    - Applications : Potentiel pour {subject} au {country}.
-    - Pertinence Salesforce : Intégration dans CRM pour {sector}.
-    """
-    return summary
 
 # Prédiction des tendances
 def predict_trend(data: List[Dict], sector: str, country: str) -> str:
@@ -247,7 +236,7 @@ def analyze_competitors(sector: str, subject: str) -> str:
     return f"""
     **Analyse des concurrents** ({subject} dans {sector}):
     - {', '.join(competitors.get(sector, ['Aucun concurrent identifié']))}
-    - Stratégies : Brevets en IA (simulé), partenariats avec startups.
+    - Stratégies : Brevets en IA, partenariats avec startups.
     - Avantage Salesforce : CRM leader, agents agentiques intégrés.
     """
 
@@ -308,11 +297,10 @@ if online:
             # Vérifier le cache
             all_content = load_cache(query)
             if not all_content:
-                articles = fetch_news(query)
+                articles = fetch_google_news(query)
                 studies_arxiv = fetch_arxiv(query)
-                studies_core = fetch_core(query)
-                x_posts = fetch_x_posts(query)
-                all_content = articles + studies_arxiv + studies_core + x_posts
+                studies_doaj = fetch_doaj(query)
+                all_content = articles + studies_arxiv + studies_doaj
                 save_cache(all_content, query)
 
             if not all_content:
@@ -324,24 +312,24 @@ if online:
                 with tab1:
                     st.subheader("Articles")
                     sort_by = st.selectbox("Trier par", ["Date", "Source", "Pertinence"], key="sort_articles")
-                    for item in sorted([x for x in all_content if x['source'] in ['NewsAPI', 'X']],
+                    for item in sorted([x for x in all_content if x['source'] == 'Google News'],
                                      key=lambda x: x['date'] if sort_by == "Date" else x['source']):
                         with st.expander(f"{item['title']}"):
                             st.write(f"**URL** : {item['url']}")
                             st.write(f"**Date** : {item['date']}")
                             st.write(f"**Abstract** : {item['abstract']}")
-                            st.markdown(generate_executive_summary(item, sector, subject, country))
+                            st.write(f"**Résumé** : {item['summary']}")
 
                 with tab2:
                     st.subheader("Études")
                     sort_by = st.selectbox("Trier par", ["Date", "Source", "Pertinence"], key="sort_studies")
-                    for item in sorted([x for x in all_content if x['source'] in ['arXiv', 'CORE']],
+                    for item in sorted([x for x in all_content if x['source'] in ['arXiv', 'DOAJ']],
                                      key=lambda x: x['date'] if sort_by == "Date" else x['source']):
                         with st.expander(f"{item['title']}"):
                             st.write(f"**URL** : {item['url']}")
                             st.write(f"**Date** : {item['date']}")
                             st.write(f"**Abstract** : {item['abstract']}")
-                            st.markdown(generate_executive_summary(item, sector, subject, country))
+                            st.write(f"**Résumé** : {item['summary']}")
 
                 with tab3:
                     st.subheader("Analyse Concurrentielle")
@@ -363,9 +351,12 @@ if online:
 
                 with tab5:
                     st.subheader("Visualisations")
-                    df_viz = pd.DataFrame([x['source'] for x in all_content], columns=['Source'])
-                    fig = px.histogram(df_viz, x='Source', title='Répartition des sources')
-                    st.plotly_chart(fig)
+                    if px is not None:
+                        df_viz = pd.DataFrame([x['source'] for x in all_content], columns=['Source'])
+                        fig = px.histogram(df_viz, x='Source', title='Répartition des sources')
+                        st.plotly_chart(fig)
+                    else:
+                        st.error("Visualisations indisponibles : plotly non installé.")
 
                 # Alerte pour nouveaux résultats
                 if len(all_content) > len(load_cache(query, max_age_hours=1)):
@@ -382,7 +373,7 @@ if st.button("Exporter les résultats") and all_content:
         results["source"].append(item["source"])
         results["date"].append(item["date"])
         results["abstract"].append(item["abstract"])
-        results["summary"].append(generate_executive_summary(item, sector, subject, country))
+        results["summary"].append(item["summary"])
     
     df = pd.DataFrame(results)
     csv = df.to_csv(index=False)
@@ -391,7 +382,7 @@ if st.button("Exporter les résultats") and all_content:
 # Tâches planifiées
 def run_scheduled_veille():
     query = "Agents Agentiques Santé Québec"
-    all_content = fetch_news(query) + fetch_arxiv(query) + fetch_core(query) + fetch_x_posts(query)
+    all_content = fetch_google_news(query) + fetch_arxiv(query) + fetch_doaj(query)
     save_cache(all_content, query)
     st.success("Mise à jour quotidienne effectuée.")
 
