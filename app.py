@@ -1,178 +1,176 @@
 import streamlit as st
-import datetime
-import asyncio
-import time
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+from datetime import datetime
+import uuid
+import re
+from typing import List, Dict
 
-from fetch_news import run_news_crawl
-from fetch_sources import (
-    search_with_openai, search_arxiv,
-    search_consensus_via_serpapi,
-    search_with_google_cse as search_with_cse_sources
-)
-from summarizer import (
-    summarize_articles, summarize_text_block,
-    generate_innovation_ideas, generate_strategic_recommendations,
-    generate_swot_analysis, compute_strategic_score,
-    always_use_keywords, INNOVATION_KEYWORDS
-)
-from report_builder import build_report_view, generate_docx
-from streamlit_timeline import timeline
-from async_sources import run_async_sources
-
-st.set_page_config(page_title="Veille stratégique IA", layout="wide")
-st.title("\U0001F4CA Tableau de bord IA – Stratégie & Innovation")
-
-st.markdown("""
-Ce tableau de bord automatise la veille stratégique sur les agents IA dans les domaines de la santé, de la finance,
-ainsi que les innovations émergentes.
-""")
-
-st.sidebar.header("\U0001F37F️ Domaines ciblés")
-selected_sector = st.sidebar.radio("Choisis un secteur :", ["Santé", "Finance", "Tous"])
-
-subtopics = {
-    "Santé": ["santé mentale", "diagnostic IA", "robotique chirurgicale"],
-    "Finance": ["fintech B2B", "analyse prédictive", "insurtech"],
-    "Tous": [""]
-}
-selected_subtopic = st.sidebar.selectbox("Sous-thème :", subtopics[selected_sector])
-
-st.sidebar.header("⚙️ Modules à activer")
-use_google_news = st.sidebar.checkbox("\U0001F310 Google News", value=True)
-use_cse = st.sidebar.checkbox("\U0001F9C1 Google CSE/TechCrunch/VB", value=True)
-use_perplexity = st.sidebar.checkbox("\U0001F9E0 Perplexity AI", value=True)
-use_openai = st.sidebar.checkbox("\U0001F4AC OpenAI", value=True)
-use_arxiv = st.sidebar.checkbox("\U0001F4DA ArXiv (scientifique)", value=False)
-use_consensus = st.sidebar.checkbox("\U0001F52C Consensus", value=False)
-
-st.sidebar.header("⚡ Mode IA")
-fast_mode = st.sidebar.checkbox("Mode rapide (résumés limités)", value=True)
-salesforce_mode = st.sidebar.checkbox("\U0001F4BC Mode Salesforce (recommandations commerciales)", value=False)
-show_ideas = st.sidebar.checkbox("\U0001F4A1 Afficher 5 idées innovantes de la semaine", value=True)
-show_swot = st.sidebar.checkbox("\U0001F9EE Générer une analyse SWOT", value=True)
-
-sector_keywords = {
-    "Santé": ["Hippocratic AI", "AI in Healthcare", "One AI Health", "Amelia AI", "IA médicale"],
-    "Finance": ["Finley AI", "Interface.ai", "AI in Finance", "automatisation bancaire"],
-    "Tous": []
+# Configuration des mots-clés par secteur, sujet et pays
+CONFIG = {
+    "sectors": {
+        "Santé": ["santé", "médical", "diagnostic", "soins", "hôpital", "patient"],
+        "Économie": ["économie", "croissance", "PIB", "emploi", "inflation", "commerce"],
+        "Finances": ["finance", "banque", "investissement", "fraude", "crypto", "marché"]
+    },
+    "subjects": {
+        "Agents Agentiques": ["agentique", "IA autonome", "agent intelligent", "automatisation"],
+        "IA": ["intelligence artificielle", "machine learning", "deep learning", "LLM"],
+        "Technologie": ["technologie", "innovation", "numérique", "cloud", "cybersécurité"]
+    },
+    "countries": {
+        "Québec": ["Québec", "Montréal", "Québec City", "francophone"],
+        "Canada": ["Canada", "Toronto", "Vancouver", "Ottawa"],
+        "Europe": ["Europe", "France", "Allemagne", "Royaume-Uni", "UE"],
+        "États-Unis": ["États-Unis", "USA", "Californie", "New York"]
+    }
 }
 
-keywords = sector_keywords[selected_sector] + INNOVATION_KEYWORDS + always_use_keywords
-if selected_subtopic:
-    keywords.append(selected_subtopic)
-
-if st.button("\U0001F680 Lancer la veille stratégique"):
-    start_time = time.time()
-    progress = st.progress(0)
+# Fonction pour collecter des articles via Google News (ou autre API)
+def fetch_articles(query: str, max_results: int = 5) -> List[Dict]:
     articles = []
+    try:
+        # Exemple avec Google News (remplacer par une API réelle)
+        url = f"https://news.google.com/search?q={query}&hl=en-US&gl=US&ceid=US:en"
+        response = requests.get(url)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        for item in soup.find_all('article')[:max_results]:
+            title = item.find('h3')
+            link = item.find('a')['href'] if item.find('a') else None
+            if title and link:
+                articles.append({
+                    "title": title.text,
+                    "url": f"https://news.google.com{link}",
+                    "source": "Google News",
+                    "date": datetime.now().strftime("%Y-%m-%d")
+                })
+    except Exception as e:
+        st.error(f"Erreur lors de la collecte des articles : {e}")
+    return articles
 
-    if fast_mode:
-        st.info("Mode rapide activé : les requêtes sont parallélisées.")
-        articles = asyncio.run(run_async_sources(
-            keywords,
-            use_cse=use_cse,
-            use_perplexity=use_perplexity,
-            use_arxiv=use_arxiv,
-            use_consensus=use_consensus
-        ))
-    else:
-        for i, keyword in enumerate(keywords):
-            with st.spinner(f"🔎 Recherche pour : {keyword}"):
-                if use_google_news or use_cse:
-                    articles.extend(run_news_crawl([keyword], use_google_news=use_google_news))
-                if use_cse:
-                    articles.extend(search_with_cse_sources(keyword))
-                if use_perplexity:
-                    articles.extend(search_with_perplexity(keyword))
-                if use_arxiv:
-                    articles.extend(search_arxiv(keyword))
-                if use_consensus:
-                    articles.extend(search_consensus_via_serpapi(keyword))
-                if use_openai:
-                    articles.append({
-                        "keyword": keyword,
-                        "title": "Résumé OpenAI",
-                        "link": "https://platform.openai.com/",
-                        "snippet": search_with_openai(keyword),
-                        "date": datetime.datetime.now().isoformat()
-                    })
-            progress.progress((i + 1) / len(keywords))
+# Fonction pour collecter des études via Semantic Scholar
+def fetch_studies(query: str, max_results: int = 3) -> List[Dict]:
+    studies = []
+    try:
+        url = f"https://api.semanticscholar.org/graph/v1/paper/search?query={query}&limit={max_results}"
+        response = requests.get(url)
+        data = response.json()
+        for paper in data.get('data', []):
+            studies.append({
+                "title": paper.get('title', 'N/A'),
+                "url": paper.get('url', '#'),
+                "source": "Semantic Scholar",
+                "date": paper.get('year', 'N/A')
+            })
+    except Exception as e:
+        st.error(f"Erreur lors de la collecte des études : {e}")
+    return studies
 
-    duration = time.time() - start_time
-    st.success(f"{len(articles)} articles trouvés en {duration:.2f} secondes.")
-    st.divider()
+# Fonction pour générer un résumé exécutif (simulé, à remplacer par Grok ou autre IA)
+def generate_executive_summary(content: Dict, sector: str, subject: str, country: str) -> str:
+    return f"""
+    **Résumé exécutif** pour "{content['title']}" ({content['source']}, {content['date']}):
+    Cet article/étude explore les avancées en {subject} dans le secteur {sector} au {country}. 
+    Points clés : [Simulé - Intégrer IA pour analyse réelle].
+    - Impact potentiel : Automatisation accrue, efficacité opérationnelle.
+    - Applications : [À personnaliser selon contenu].
+    - Pertinence pour Salesforce : Intégration possible dans les solutions CRM pour {sector}.
+    """
 
-    with st.spinner("\U0001F9E0 Résumés générés par IA..."):
-        summaries = summarize_articles(articles, limit=5 if fast_mode else None)
+# Fonction pour analyser les concurrents (simulé)
+def analyze_competitors(sector: str, subject: str) -> str:
+    competitors = {
+        "Santé": ["IBM (Watson Health)", "Microsoft (Azure Health)", "Google Health"],
+        "Économie": ["SAP", "Oracle", "Microsoft"],
+        "Finances": ["IBM", "Microsoft (Copilot)", "OpenAI"]
+    }
+    return f"""
+    **Analyse des concurrents** ({subject} dans {sector}):
+    - {', '.join(competitors.get(sector, ['Aucun concurrent identifié']))}
+    - Observations : [Simulé - Intégrer IA pour analyse détaillée].
+    - Avantage Salesforce : Plateforme CRM leader, potentiel pour agents agentiques intégrés.
+    """
 
-    total = len(articles)
-    success = sum(len(s) for s in summaries.values())
-    st.markdown(f"🧠 Résumés générés : {success} | ❌ Résumés échoués : {total - success}")
+# Fonction pour générer des recommandations stratégiques pour Salesforce
+def generate_strategic_recommendations(sector: str, subject: str, country: str) -> str:
+    return f"""
+    **Recommandations stratégiques pour Salesforce** ({subject}, {sector}, {country}):
+    1. **Développer un agent agentique spécialisé** : Créer un agent IA autonome intégré à Salesforce CRM, capable d'automatiser des tâches complexes (ex. : détection de fraude en finance, diagnostics en santé).
+    2. **Partenariats locaux** : Collaborer avec des startups IA au {country} (ex. : Element AI au Québec, DeepMind en Europe).
+    3. **Focus sur l'éthique** : Intégrer des balises éthiques pour renforcer la confiance des clients dans {sector}.
+    4. **Personnalisation** : Adapter les agents aux besoins spécifiques des clients {sector} (ex. : prévisions financières, gestion hospitalière).
+    """
 
-    st.subheader("📌 Résumé exécutif – dernières 24h")
-    all_snippets = "\n".join([a['snippet'] for a in articles if a.get('snippet')])
-    summary_24h = summarize_text_block(all_snippets)
-    st.markdown(summary_24h)
+# Interface Streamlit
+st.title("Veille Stratégique IA pour Salesforce")
+st.markdown("Suivez les avancées des agents agentiques externes en santé, économie et finances, avec des recommandations stratégiques.")
 
-    if show_swot:
-        st.subheader("🧠 Analyse SWOT automatique")
-        swot_text = generate_swot_analysis(all_snippets)
-        st.markdown(swot_text)
+# Sélection des filtres
+col1, col2, col3 = st.columns(3)
+with col1:
+    sector = st.selectbox("Secteur", list(CONFIG["sectors"].keys()))
+with col2:
+    subject = st.selectbox("Sujet", list(CONFIG["subjects"].keys()))
+with col3:
+    country = st.selectbox("Pays", list(CONFIG["countries"].keys()))
 
-    st.subheader("📚 Résumés par sujet")
-    col1, col2 = st.columns(2)
-    for i, (topic, summary_list) in enumerate(summaries.items()):
-        with (col1 if i % 2 == 0 else col2):
-            st.markdown(f"### 🧠 {topic}")
-            for s in summary_list:
-                st.markdown(s)
+# Construction de la requête avec mots-clés
+keywords = CONFIG["sectors"][sector] + CONFIG["subjects"][subject] + CONFIG["countries"][country]
+query = f"{subject} {sector} {country} {' '.join(keywords)}"
+st.write(f"Requête : {query}")
 
-    with st.expander("📊 Rapport complet structuré"):
-        build_report_view(summaries, articles)
+# Bouton pour lancer la recherche
+if st.button("Lancer la veille"):
+    with st.spinner("Collecte des données..."):
+        # Collecte des articles et études
+        articles = fetch_articles(query)
+        studies = fetch_studies(query)
+        all_content = articles + studies
 
-    if show_ideas:
-        st.subheader("\U0001F4A1 5 idées innovantes générées par IA")
-        for idea in generate_innovation_ideas(all_snippets):
-            st.markdown(f"- {idea}")
+        if not all_content:
+            st.warning("Aucun résultat trouvé. Essayez une autre combinaison.")
+        else:
+            # Affichage des résultats
+            st.subheader("Résultats de la veille")
+            for item in all_content:
+                with st.expander(f"{item['title']} ({item['source']})"):
+                    st.write(f"**URL** : {item['url']}")
+                    st.write(f"**Date** : {item['date']}")
+                    st.markdown(generate_executive_summary(item, sector, subject, country))
 
-    if salesforce_mode:
-        st.subheader("📈 Recommandations IA – Commercial / Salesforce")
-        for reco in generate_strategic_recommendations(all_snippets, mode="salesforce"):
-            st.markdown(f"✅ {reco}")
+            # Analyse des concurrents
+            st.subheader("Analyse des concurrents")
+            st.markdown(analyze_competitors(sector, subject))
 
-    st.subheader("\U0001F551 Timeline des sujets stratégiques")
-    events = []
-    for article in articles:
-        if article.get("title", "").startswith("Erreur"):
-            continue
-        date_str = article.get("date") or datetime.datetime.now().isoformat()
-        date = datetime.datetime.fromisoformat(date_str[:19])
-        color_map = {
-            "Santé": "#1f77b4",
-            "Finance": "#ff7f0e",
-            "Tous": "#2ca02c"
-        }
-        events.append({
-            "start_date": {
-                "year": date.year,
-                "month": date.month,
-                "day": date.day
-            },
-            "text": {
-                "headline": article.get("title", "Sans titre"),
-                "text": article.get("snippet", "")[:300] + "..."
-            },
-            "group": selected_subtopic or selected_sector,
-            "background": color_map.get(selected_sector, "#999999")
-        })
-    timeline({"title": {"text": {"headline": "Évolution des agents IA par thème"}}, "events": events})
+            # Recommandations stratégiques
+            st.subheader("Recommandations pour Salesforce")
+            st.markdown(generate_strategic_recommendations(sector, subject, country))
 
-    if summaries:
-        docx_file = generate_docx(summaries, articles)
-        st.download_button(
-            label="\U0001F4C5 Télécharger le rapport en DOCX",
-            data=docx_file,
-            file_name="rapport_veille.docx",
-            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        )
+            # Résumé général
+            st.subheader("Résumé général")
+            st.markdown(f"""
+            **Synthèse** : La recherche sur {subject} dans {sector} au {country} montre un potentiel élevé pour les agents agentiques. Les tendances incluent l'automatisation accrue et l'intégration d'IA éthique. Salesforce peut se positionner comme leader en intégrant des agents autonomes dans ses solutions CRM.
+            **Prochaines étapes** : Investir dans le développement d'agents spécialisés, établir des partenariats locaux, et prioriser l'éthique et la personnalisation.
+            """)
+
+# Exportation des résultats
+if st.button("Exporter les résultats"):
+    results = {
+        "title": [],
+        "url": [],
+        "source": [],
+        "date": [],
+        "summary": []
+    }
+    for item in all_content:
+        results["title"].append(item["title"])
+        results["url"].append(item["url"])
+        results["source"].append(item["source"])
+        results["date"].append(item["date"])
+        results["summary"].append(generate_executive_summary(item, sector, subject, country))
+    
+    df = pd.DataFrame(results)
+    csv = df.to_csv(index=False)
+    st.download_button("Télécharger CSV", csv, "veille_strategique.csv", "text/csv")
 
