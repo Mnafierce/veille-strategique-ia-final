@@ -122,7 +122,7 @@ def score_relevance(item: Dict, keywords: List[str]) -> float:
         'finance': 2.0, 'fraude': 2.0, 'banque': 1.5, 'investissement': 1.5,
         'crypto': 1.5, 'marché': 1.5, 'blockchain': 1.5, 'agentique': 2.0,
         'ia': 1.0, 'québec': 1.5
-    }  # Poids pour mots-clés critiques
+    }
     score = sum(weights.get(keyword.lower(), 1.0) for keyword in keywords if keyword.lower() in text)
     max_score = sum(weights.get(keyword.lower(), 1.0) for keyword in keywords)
     return score / max_score if max_score > 0 else 0
@@ -162,7 +162,6 @@ def generate_report(content: List[Dict]) -> str:
     except Exception as e:
         st.error(f"Erreur lors de la génération du rapport : {e}")
         return "Rapport indisponible."
-
 
 # Scraping arXiv
 def fetch_arxiv(query: str, max_results: int = 3) -> List[Dict]:
@@ -347,22 +346,44 @@ st.set_page_config(page_title="Veille Stratégique IA pour Salesforce", layout="
 st.markdown("""
     <style>
     .main { background-color: #f5f7fa; }
-    .stButton>button { background-color: #005FB8; color: white; }
+    .stButton>button { 
+        background-color: #005FB8; 
+        color: #ffffff; 
+        border-radius: 5px; 
+        font-weight: bold; 
+    }
     .stSelectbox, .stTextInput, .stTextArea { 
         background-color: #ffffff; 
         border-radius: 5px; 
-        color: #000000; 
+        color: #000000 !important; 
         border: 1px solid #333333; 
     }
-    .stSelectbox div[data-baseweb="select"] > div { color: #000000; }
+    .stSelectbox div[data-baseweb="select"] > div { 
+        color: #000000 !important; 
+        background-color: #ffffff !important; 
+    }
+    .stSelectbox div[data-baseweb="select"] > div:hover { 
+        background-color: #e6f0fa !important; 
+    }
     .stExpander { 
         background-color: #ffffff; 
         border: 1px solid #cccccc; 
         border-radius: 5px; 
     }
-    .stExpander div[role="button"] { color: #000000; font-weight: bold; }
-    h1, h2, h3 { color: #003087; font-family: 'Salesforce Sans', Arial, sans-serif; }
-    .stMarkdown { color: #000000; }
+    .stExpander div[role="button"] { 
+        color: #000000 !important; 
+        font-weight: bold; 
+    }
+    h1, h2, h3 { 
+        color: #003087; 
+        font-family: 'Salesforce Sans', Arial, sans-serif; 
+    }
+    .stMarkdown { 
+        color: #000000 !important; 
+    }
+    .stMarkdown p { 
+        color: #000000 !important; 
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -380,18 +401,24 @@ except:
 # Sélection des filtres
 all_content = []
 if online:
+    st.markdown("### Filtres de recherche")
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        sector = st.selectbox("Secteur", list(CONFIG["sectors"].keys()))
+        st.markdown("**Secteur**")
+        sector = st.selectbox("", list(CONFIG["sectors"].keys()), key="sector_select")
     with col2:
-        subject = st.selectbox("Sujet", list(CONFIG["subjects"].keys()))
+        st.markdown("**Sujet**")
+        subject = st.selectbox("", list(CONFIG["subjects"].keys()), key="subject_select")
     with col3:
-        country = st.selectbox("Pays", list(CONFIG["countries"].keys()))
+        st.markdown("**Pays**")
+        country = st.selectbox("", list(CONFIG["countries"].keys()), key="country_select")
     with col4:
-        profile = st.selectbox("Profil de veille", ["Aucun"] + list(CONFIG["profiles"].keys()))
+        st.markdown("**Profil de veille**")
+        profile = st.selectbox("", ["Aucun"] + list(CONFIG["profiles"].keys()), key="profile_select")
 
     # Filtres dynamiques pour mots-clés
-    custom_keywords = st.text_input("Mots-clés personnalisés (séparés par des virgules)", "")
+    st.markdown("**Mots-clés personnalisés**")
+    custom_keywords = st.text_input("(séparés par des virgules)", "", key="custom_keywords_input")
     keywords = CONFIG["sectors"][sector] + CONFIG["subjects"][subject] + CONFIG["countries"][country]
     if profile != "Aucun":
         keywords += CONFIG["profiles"][profile]
@@ -399,15 +426,17 @@ if online:
         keywords += [k.strip() for k in custom_keywords.split(",")]
 
     query = f"{subject} {sector} {country} {' '.join(keywords)}"
-    st.write(f"Requête : {query}")
+    st.markdown(f"**Requête** : {query}")
 
     # Barre de recherche rapide
-    quick_search = st.text_input("Recherche rapide", "")
+    st.markdown("**Recherche rapide**")
+    quick_search = st.text_input("(remplace la requête ci-dessus)", "", key="quick_search_input")
     if quick_search:
         query = quick_search
 
     # Intégration Deep Search
-    deep_search_input = st.text_area("Coller les résultats de Deep Search", "")
+    st.markdown("**Intégration Deep Search**")
+    deep_search_input = st.text_area("Coller les résultats de Deep Search", "", key="deep_search_input")
     if deep_search_input:
         all_content.append({
             'title': "Résultats Deep Search",
@@ -419,115 +448,118 @@ if online:
             'summary': summarize_text(deep_search_input, target_lang='en')
         })
 
-    # Bouton pour lancer la recherche
-    if st.button("Lancer la veille"):
-        with st.spinner("Collecte des données..."):
-            # Vérifier le cache
-            all_content += load_cache(query)
-            if not all_content or not deep_search_input:
-                articles = fetch_google_news(query)
-                studies_arxiv = fetch_arxiv(query)
-                studies_doaj = fetch_doaj(query)
-                studies_semantic = fetch_semantic_scholar(query)
-                all_content += articles + studies_arxiv + studies_doaj + studies_semantic
-                # Raffiner la requête
-                refined_query = refine_query(all_content)
-                if refined_query:
-                    articles_refined = fetch_google_news(refined_query)
-                    studies_doaj_refined = fetch_doaj(refined_query)
-                    studies_semantic_refined = fetch_semantic_scholar(refined_query)
-                    all_content += articles_refined + studies_doaj_refined + studies_semantic_refined
-                save_cache(all_content, query)
+    # Boutons d'action
+    st.markdown("### Actions")
+    col_btn1, col_btn2 = st.columns([1, 2])
+    with col_btn1:
+        if st.button("Lancer la veille"):
+            with st.spinner("Collecte des données..."):
+                # Vérifier le cache
+                all_content += load_cache(query)
+                if not all_content or not deep_search_input:
+                    articles = fetch_google_news(query)
+                    studies_arxiv = fetch_arxiv(query)
+                    studies_doaj = fetch_doaj(query)
+                    studies_semantic = fetch_semantic_scholar(query)
+                    all_content += articles + studies_arxiv + studies_doaj + studies_semantic
+                    # Raffiner la requête
+                    refined_query = refine_query(all_content)
+                    if refined_query:
+                        articles_refined = fetch_google_news(refined_query)
+                        studies_doaj_refined = fetch_doaj(refined_query)
+                        studies_semantic_refined = fetch_semantic_scholar(refined_query)
+                        all_content += articles_refined + studies_doaj_refined + studies_semantic_refined
+                    save_cache(all_content, query)
 
-            if not all_content:
-                st.warning("Aucun résultat trouvé.")
-            else:
-                # Appliquer le scoring de pertinence
-                for item in all_content:
-                    item['relevance_score'] = score_relevance(item, keywords)
+                if not all_content:
+                    st.warning("Aucun résultat trouvé.")
+                else:
+                    # Appliquer le scoring de pertinence
+                    for item in all_content:
+                        item['relevance_score'] = score_relevance(item, keywords)
 
-                # Onglets pour organiser les résultats
-                tab1, tab2, tab3, tab4, tab5 = st.tabs(["Articles", "Études", "Analyse Concurrentielle", "Recommandations", "Visualisations"])
+                    # Onglets pour organiser les résultats
+                    tab1, tab2, tab3, tab4, tab5 = st.tabs(["Articles", "Études", "Analyse Concurrentielle", "Recommandations", "Visualisations"])
 
-                with tab1:
-                    st.subheader("Articles")
-                    sort_by = st.selectbox("Trier par", ["Date", "Source", "Pertinence"], key="sort_articles")
-                    sort_key = lambda x: x['date'] if sort_by == "Date" else x['source_name'] if sort_by == "Source" else -x['relevance_score']
-                    for item in sorted([x for x in all_content if x['source'] == 'Google News'], key=sort_key):
-                        with st.expander(f"{item['title']}"):
-                            st.write(f"**Source** : [{item['source_name']}]({item['url']})")
-                            st.write(f"**URL** : {item['url']}")
-                            st.write(f"**Date** : {item['date']}")
-                            st.write(f"**Abstract** : {item['abstract']}")
-                            st.write(f"**Résumé** : {item['summary']} (Généré par IA via Google Translator)")
-                            st.progress(item['relevance_score'])
-                            st.write(f"**Score de pertinence** : {item['relevance_score']:.2%}")
+                    with tab1:
+                        st.subheader("Articles")
+                        sort_by = st.selectbox("Trier par", ["Date", "Source", "Pertinence"], key="sort_articles")
+                        sort_key = lambda x: x['date'] if sort_by == "Date" else x['source_name'] if sort_by == "Source" else -x['relevance_score']
+                        for item in sorted([x for x in all_content if x['source'] == 'Google News'], key=sort_key):
+                            with st.expander(f"{item['title']}"):
+                                st.write(f"**Source** : [{item['source_name']}]({item['url']})")
+                                st.write(f"**URL** : {item['url']}")
+                                st.write(f"**Date** : {item['date']}")
+                                st.write(f"**Abstract** : {item['abstract']}")
+                                st.write(f"**Résumé** : {item['summary']} (Généré par IA via Google Translator)")
+                                st.progress(item['relevance_score'])
+                                st.write(f"**Score de pertinence** : {item['relevance_score']:.2%}")
 
-                with tab2:
-                    st.subheader("Études")
-                    sort_by = st.selectbox("Trier par", ["Date", "Source", "Pertinence"], key="sort_studies")
-                    sort_key = lambda x: x['date'] if sort_by == "Date" else x['source_name'] if sort_by == "Source" else -x['relevance_score']
-                    for item in sorted([x for x in all_content if x['source'] in ['arXiv', 'DOAJ', 'Semantic Scholar']], key=sort_key):
-                        with st.expander(f"{item['title']}"):
-                            st.write(f"**Source** : [{item['source_name']}]({item['url']})")
-                            st.write(f"**URL** : {item['url']}")
-                            st.write(f"**Date** : {item['date']}")
-                            st.write(f"**Abstract** : {item['abstract']}")
-                            st.write(f"**Résumé** : {item['summary']} (Généré par IA via Google Translator)")
-                            st.progress(item['relevance_score'])
-                            st.write(f"**Score de pertinence** : {item['relevance_score']:.2%}")
+                    with tab2:
+                        st.subheader("Études")
+                        sort_by = st.selectbox("Trier par", ["Date", "Source", "Pertinence"], key="sort_studies")
+                        sort_key = lambda x: x['date'] if sort_by == "Date" else x['source_name'] if sort_by == "Source" else -x['relevance_score']
+                        for item in sorted([x for x in all_content if x['source'] in ['arXiv', 'DOAJ', 'Semantic Scholar']], key=sort_key):
+                            with st.expander(f"{item['title']}"):
+                                st.write(f"**Source** : [{item['source_name']}]({item['url']})")
+                                st.write(f"**URL** : {item['url']}")
+                                st.write(f"**Date** : {item['date']}")
+                                st.write(f"**Abstract** : {item['abstract']}")
+                                st.write(f"**Résumé** : {item['summary']} (Généré par IA via Google Translator)")
+                                st.progress(item['relevance_score'])
+                                st.write(f"**Score de pertinence** : {item['relevance_score']:.2%}")
 
-                with tab3:
-                    st.subheader("Analyse Concurrentielle")
-                    st.markdown(analyze_competitors(sector, subject))
+                    with tab3:
+                        st.subheader("Analyse Concurrentielle")
+                        st.markdown(analyze_competitors(sector, subject))
 
-                with tab4:
-                    st.subheader("Recommandations pour Salesforce")
-                    st.markdown(f"""
-                    **Recommandations stratégiques** ({subject}, {sector}, {country}):
-                    1. Développer un agent agentique spécialisé pour {sector}.
-                    2. Partenariats avec startups IA au {country}.
-                    3. Intégrer des balises éthiques pour {sector}.
-                    4. Personnaliser les agents pour les clients {sector}.
-                    """)
-                    st.subheader("Rapport synthétique")
-                    st.markdown(generate_report(all_content))
-                    st.subheader("Prédictions")
-                    st.write(predict_trend(all_content, sector, country))
-                    st.subheader("Signaux faibles")
-                    st.write(detect_weak_signals(all_content, sector, country))
+                    with tab4:
+                        st.subheader("Recommandations pour Salesforce")
+                        st.markdown(f"""
+                        **Recommandations stratégiques** ({subject}, {sector}, {country}):
+                        1. Développer un agent agentique spécialisé pour {sector}.
+                        2. Partenariats avec startups IA au {country}.
+                        3. Intégrer des balises éthiques pour {sector}.
+                        4. Personnaliser les agents pour les clients {sector}.
+                        """)
+                        st.subheader("Rapport synthétique")
+                        st.markdown(generate_report(all_content))
+                        st.subheader("Prédictions")
+                        st.write(predict_trend(all_content, sector, country))
+                        st.subheader("Signaux faibles")
+                        st.write(detect_weak_signals(all_content, sector, country))
 
-                with tab5:
-                    st.subheader("Visualisations")
-                    if px is not None:
-                        df_viz = pd.DataFrame([x['source'] for x in all_content], columns=['Source'])
-                        fig = px.histogram(df_viz, x='Source', title='Répartition des sources')
-                        st.plotly_chart(fig)
-                    else:
-                        st.error("Visualisations indisponibles : plotly non installé.")
+                    with tab5:
+                        st.subheader("Visualisations")
+                        if px is not None:
+                            df_viz = pd.DataFrame([x['source'] for x in all_content], columns=['Source'])
+                            fig = px.histogram(df_viz, x='Source', title='Répartition des sources')
+                            st.plotly_chart(fig)
+                        else:
+                            st.error("Visualisations indisponibles : plotly non installé.")
 
-                # Alerte pour nouveaux résultats
-                if len(all_content) > len(load_cache(query, max_age_hours=1)):
-                    st.success("Nouveaux résultats détectés !")
+                    # Alerte pour nouveaux résultats
+                    if len(all_content) > len(load_cache(query, max_age_hours=1)):
+                        st.success("Nouveaux résultats détectés !")
 
-# Exportation des résultats
-if st.button("Exporter les résultats") and all_content:
-    results = {
-        "title": [], "url": [], "source": [], "source_name": [], "date": [], "abstract": [], "summary": [], "relevance_score": []
-    }
-    for item in all_content:
-        results["title"].append(item["title"])
-        results["url"].append(item["url"])
-        results["source"].append(item["source"])
-        results["source_name"].append(item["source_name"])
-        results["date"].append(item["date"])
-        results["abstract"].append(item["abstract"])
-        results["summary"].append(item["summary"])
-        results["relevance_score"].append(item.get("relevance_score", 0))
-    
-    df = pd.DataFrame(results)
-    csv = df.to_csv(index=False)
-    st.download_button("Télécharger CSV", csv, "veille_strategique.csv", "text/csv")
+    with col_btn2:
+        if st.button("Exporter les résultats") and all_content:
+            results = {
+                "title": [], "url": [], "source": [], "source_name": [], "date": [], "abstract": [], "summary": [], "relevance_score": []
+            }
+            for item in all_content:
+                results["title"].append(item["title"])
+                results["url"].append(item["url"])
+                results["source"].append(item["source"])
+                results["source_name"].append(item["source_name"])
+                results["date"].append(item["date"])
+                results["abstract"].append(item["abstract"])
+                results["summary"].append(item["summary"])
+                results["relevance_score"].append(item.get("relevance_score", 0))
+            
+            df = pd.DataFrame(results)
+            csv = df.to_csv(index=False)
+            st.download_button("Télécharger CSV", csv, "veille_strategique.csv", "text/csv")
 
 # Tâches planifiées
 def run_scheduled_veille():
