@@ -42,27 +42,6 @@ def search_with_openai(question):
         except Exception as e2:
             return f"[Erreur complète OpenAI+Gemini] {e2}"
 
-# ----------- Perplexity ------------------
-def search_with_perplexity(keyword):
-    try:
-        url = "https://api.perplexity.ai/search"
-        headers = {
-            "Authorization": f"Bearer {os.getenv('PERPLEXITY_API_KEY')}",
-            "Content-Type": "application/json"
-        }
-        payload = {"q": keyword, "source": "web", "autocomplete": False}
-        response = requests.post(url, headers=headers, json=payload)
-        data = response.json()
-        return [{
-            "keyword": keyword,
-            "title": r.get("title"),
-            "link": r.get("url"),
-            "snippet": r.get("snippet", ""),
-            "date": r.get("published_at")
-        } for r in data.get("results", [])[:5]]
-    except Exception as e:
-        return [{"keyword": keyword, "title": "Erreur Perplexity", "link": "", "snippet": str(e)}]
-
 # ----------- Consensus (via SerpAPI) ------------------
 def search_consensus_via_serpapi(keyword):
     try:
