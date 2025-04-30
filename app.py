@@ -13,14 +13,18 @@ import sqlite3
 try:
     from sklearn.linear_model import LogisticRegression
 except ImportError:
-    st.error("scikit-learn n'est pas installé. Veuillez l'ajouter à requirements.txt.")
+    st.error("scikit-learn n'est pas installé. Veuillez ajouter 'scikit-learn==1.5.2' à requirements.txt.")
     LogisticRegression = None
 import numpy as np
-import plotly.express as px
+try:
+    import plotly.express as px
+except ImportError:
+    st.error("plotly n'est pas installé. Veuillez ajouter 'plotly==5.20.0' à requirements.txt.")
+    px = None
 try:
     from deep_translator import GoogleTranslator
 except ImportError:
-    st.error("deep_translator n'est pas installé. Veuillez l'ajouter à requirements.txt.")
+    st.error("deep_translator n'est pas installé. Veuillez ajouter 'deep_translator==1.11.1' à requirements.txt.")
     GoogleTranslator = None
 import schedule
 import threading
@@ -166,7 +170,7 @@ def fetch_core(query: str, max_results: int = 3) -> List[Dict]:
             time.sleep(2)
     return studies
 
-# NewsAPI (simulant Sindup/Meltwater)
+# NewsAPI
 def fetch_news(query: str, max_results: int = 5) -> List[Dict]:
     articles = []
     for _ in range(3):
@@ -205,12 +209,12 @@ def fetch_x_posts(query: str, max_results: int = 3) -> List[Dict]:
         st.error(f"Erreur lors de la collecte des posts X : {e}")
     return posts
 
-# Analyse avec Grok (simulé)
+# Résumé exécutif local
 def generate_executive_summary(content: Dict, sector: str, subject: str, country: str) -> str:
     abstract = content.get('abstract', 'N/A')
     summary = f"""
     **Résumé exécutif** pour "{content['title']}" ({content['source']}, {content['date']}):
-    Analyse IA : {abstract if abstract != 'N/A' else 'Analyse en cours via Grok API (simulé)'}.
+    Analyse : {abstract if abstract != 'N/A' else 'Contenu en cours d\'analyse.'}.
     - Impact : Automatisation et optimisation dans {sector}.
     - Applications : Potentiel pour {subject} au {country}.
     - Pertinence Salesforce : Intégration dans CRM pour {sector}.
@@ -363,9 +367,12 @@ if online:
 
                 with tab5:
                     st.subheader("Visualisations")
-                    df_viz = pd.DataFrame([x['source'] for x in all_content], columns=['Source'])
-                    fig = px.histogram(df_viz, x='Source', title='Répartition des sources')
-                    st.plotly_chart(fig)
+                    if px is not None:
+                        df_viz = pd.DataFrame([x['source'] for x in all_content], columns=['Source'])
+                        fig = px.histogram(df_viz, x='Source', title='Répartition des sources')
+                        st.plotly_chart(fig)
+                    else:
+                        st.error("Visualisations indisponibles : plotly non installé.")
 
                 # Alerte pour nouveaux résultats
                 if len(all_content) > len(load_cache(query, max_age_hours=1)):
